@@ -82,6 +82,10 @@ export function Layout() {
         <Outlet />
       </main>
 
+      <footer className="mx-auto w-full max-w-6xl px-4 pb-24 pt-2 text-center text-xs text-muted-foreground md:pb-6">
+        {APP_NAME} © 2026
+      </footer>
+
       <nav
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background shadow-[0_-4px_16px_rgba(0,0,0,0.06)] md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
