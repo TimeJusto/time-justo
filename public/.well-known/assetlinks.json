@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.timejusto.app",
+        "sha256_cert_fingerprints": ["B2:5A:A9:E2:60:1E:9F:1E:64:EA:D5:86:C8:8D:7D:C2:74:82:A9:69:15:68:1C:E9:0F:EC:AA:EF:A3:F3:37:24"]
+      }
+    }]
