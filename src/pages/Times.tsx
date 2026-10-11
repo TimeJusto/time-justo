@@ -5,6 +5,7 @@ import { useApp } from "@/context/AppContext";
 import type { DrawDiagnostics } from "@/types";
 import { buildValidation } from "@/algorithm/drawAlgorithm";
 import { formatDateBR } from "@/lib/format";
+import { sortTeamsByNumber, teamCardKey } from "@/lib/normalize";
 import { Button } from "@/components/ui/button";
 import { TeamCard } from "@/components/team-card";
 import { ValidationPanel } from "@/components/validation-panel";
@@ -37,6 +38,12 @@ export default function Times() {
           )
         : null,
     [currentDraw, settings],
+  );
+
+  // Ordem fixa: Time 1, 2, 3... independente da ordem sorteada.
+  const teams = useMemo(
+    () => sortTeamsByNumber(currentDraw?.teams ?? []),
+    [currentDraw],
   );
 
   const handleDraw = () => {
@@ -125,8 +132,8 @@ export default function Times() {
       {currentDraw ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {currentDraw.teams.map((team) => (
-              <TeamCard key={team.teamNumber} team={team} />
+            {teams.map((team) => (
+              <TeamCard key={teamCardKey(team)} team={team} />
             ))}
           </div>
           {validation ? (

@@ -1,11 +1,20 @@
-import { Check, X } from "lucide-react";
+import { Check, Info, X } from "lucide-react";
 import type { DrawValidation } from "@/types";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+const REPETITION_TOOLTIP =
+  "Cada dupla conta uma vez por baba anterior. O peso da dupla aumenta 1 a cada baba em que os dois jogaram juntos. O total soma os pesos de todas as duplas reunidas neste sorteio. Uma janela maior gera um número maior — o que é normal.";
 
 interface ValidationPanelProps {
   validation: DrawValidation;
 }
 
+/** Item com aprovação (OK) ou falha — só para as validações obrigatórias. */
 function StatusRow({
   label,
   detail,
@@ -34,11 +43,55 @@ function StatusRow({
   );
 }
 
+/** Item apenas informativo (sem julgamento de sucesso/falha). */
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3 py-2">
       <span className="text-sm font-medium">{label}</span>
       <span className="shrink-0 text-sm font-semibold">{value}</span>
+    </div>
+  );
+}
+
+/**
+ * Indicador neutro (âmbar): não é sucesso nem falha.
+ * Usado para os pontos de repetição, que dependem da janela configurada.
+ */
+function IndicatorRow({
+  label,
+  value,
+  detail,
+  tooltip,
+  className,
+}: {
+  label: string;
+  value: number;
+  detail: string;
+  tooltip: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("py-2", className)}>
+      <div className="flex items-center gap-1.5 text-sm font-medium text-amber-900">
+        <span>
+          {label}: <span className="font-bold">{value}</span>
+        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="Como os pontos de repetição são calculados"
+              className="text-amber-700/70 transition-colors hover:text-amber-900"
+            >
+              <Info className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs text-xs leading-relaxed">
+            {tooltip}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+      <div className="text-xs text-amber-700">{detail}</div>
     </div>
   );
 }
@@ -78,10 +131,12 @@ export function ValidationPanel({ validation }: ValidationPanelProps) {
           detail="Em todas as posições"
           ok={validation.positionDifferenceOk}
         />
-        <StatusRow
+        <IndicatorRow
           label="Pontos de repetição"
-          detail={`Score de repetição: ${validation.repetitionScore}`}
-          ok={validation.repetitionScore === 0}
+          value={validation.repetitionScore}
+          detail="Indicador — menor é melhor"
+          tooltip={REPETITION_TOOLTIP}
+          className="my-1 rounded-md bg-amber-50 px-3"
         />
         <InfoRow label="Tentativas" value={String(validation.attempts)} />
       </div>

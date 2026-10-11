@@ -1,4 +1,4 @@
-import type { Position } from "@/types";
+import type { DrawTeam, Position } from "@/types";
 
 export const POSITIONS: Position[] = ["Atacante", "Meia", "Zagueiro", "Goleiro"];
 
@@ -50,4 +50,19 @@ export function sortTeamPlayers<
     if (starDiff !== 0) return starDiff;
     return a.playerName.localeCompare(b.playerName, "pt-BR");
   });
+}
+
+/**
+ * Ordem fixa dos cards: sempre por teamNumber crescente (Time 1, 2, 3...).
+ * O sorteio altera apenas quem está em cada time, nunca a posição dos cards.
+ */
+export function sortTeamsByNumber<T extends { teamNumber: number }>(
+  teams: T[],
+): T[] {
+  return [...teams].sort((a, b) => a.teamNumber - b.teamNumber);
+}
+
+/** Id estável do card de um time (independe da ordem recebida). */
+export function teamCardKey(team: Pick<DrawTeam, "teamNumber">): string {
+  return `time-${team.teamNumber}`;
 }

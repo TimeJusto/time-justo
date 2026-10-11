@@ -1,5 +1,5 @@
 import type { DrawTeam } from "@/types";
-import { sortTeamPlayers } from "@/lib/normalize";
+import { sortTeamPlayers, sortTeamsByNumber } from "@/lib/normalize";
 import { formatEsquema } from "@/lib/format";
 import { headerTextColor, teamColor } from "@/lib/teamColors";
 import { APP_LOGO, APP_NAME, APP_STORE_TEXT, APP_TAGLINE } from "@/lib/brand";
@@ -117,7 +117,9 @@ function safeFileName(value: string): string {
 export async function generateShareImage(
   input: ShareImageInput,
 ): Promise<ShareImageResult> {
-  const teams = input.teams.filter((t) => t.players.length > 0);
+  const teams = sortTeamsByNumber(
+    input.teams.filter((t) => t.players.length > 0),
+  );
   const playersPerTeam = Math.max(
     1,
     ...teams.map((t) => t.players.length),

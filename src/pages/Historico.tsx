@@ -4,6 +4,7 @@ import { Calendar, ChevronDown, Trash2 } from "lucide-react";
 import type { Draw } from "@/types";
 import { useApp } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
+import { sortTeamsByNumber, teamCardKey } from "@/lib/normalize";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TeamCard } from "@/components/team-card";
@@ -132,8 +133,12 @@ export default function Historico() {
                     {open ? (
                       <div className="border-t border-border p-4">
                         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                          {draw.teams.map((team) => (
-                            <TeamCard key={team.teamNumber} team={team} compact />
+                          {sortTeamsByNumber(draw.teams).map((team) => (
+                            <TeamCard
+                              key={teamCardKey(team)}
+                              team={team}
+                              compact
+                            />
                           ))}
                         </div>
                         <div className="mt-3 flex justify-end">
