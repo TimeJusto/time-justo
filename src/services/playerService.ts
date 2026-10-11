@@ -30,13 +30,15 @@ export interface RosterValidationResult {
 
 /**
  * Valida e normaliza a lista completa de jogadores:
+ * - nome obrigatório;
  * - nomes duplicados (ignorando maiúsculas/minúsculas);
- * - posição válida (aceita acentos);
- * - estrelas limitadas entre 1 e 5;
+ * - posição obrigatória e válida (aceita acentos);
+ * - nota dentro da escala configurada (1–5 ou 1–10);
  * - ordenação por posição e alfabética.
  */
 export function validateAndNormalizeRoster(
   players: Player[],
+  starScale: number,
 ): RosterValidationResult {
   if (players.length === 0) {
     return { errors: ["O Cadastro está vazio."], players: [] };
@@ -49,7 +51,7 @@ export function validateAndNormalizeRoster(
   for (const p of players) {
     const cleanName = normalizeName(p.name);
     const position = normalizePosition(p.position);
-    const stars = Math.min(5, Math.max(1, Math.round(p.stars) || 1));
+    const stars = Math.round(Number(p.stars));
 
     if (!cleanName) {
       errors.push("Jogador sem nome encontrado.");
@@ -57,6 +59,12 @@ export function validateAndNormalizeRoster(
     }
     if (!position) {
       errors.push(`Posição inválida para ${cleanName}.`);
+      continue;
+    }
+    if (!Number.isFinite(stars) || stars < 1 || stars > starScale) {
+      errors.push(
+        `Nota inválida para ${cleanName}: use de 1 a ${starScale}.`,
+      );
       continue;
     }
 

@@ -55,12 +55,14 @@ function failingResult(
 
 /**
  * Algoritmo real de sorteio:
- * - pré-validações (times 3/4, quantidade exata de confirmados, goleiros ≤ times);
+ * - pré-validações (mínimo de 2 times, mínimo de 1 jogador por time,
+ *   quantidade exata de confirmados, goleiros ≤ times);
  * - goleiros distribuídos um por time;
  * - jogadores de linha embaralhados e ordenados por estrelas;
  * - cada jogador vai para um time elegível de menor soma de estrelas (aleatório entre empates);
- * - validação final obrigatória (7 por time, ≤1 goleiro, diferenças ≤ máximos);
- * - roda até maxAttempts, analisa no máximo 300 resultados válidos,
+ * - validação final obrigatória (jogadores por time, ≤1 goleiro,
+ *   diferenças de estrelas e por posição dentro dos máximos configurados);
+ * - roda até maxAttempts tentativas, analisa no máximo 300 resultados válidos,
  *   guarda o de menor pontuação de repetição e encerra ao atingir 0.
  */
 export function performDraw(
@@ -76,8 +78,25 @@ export function performDraw(
     maxAttempts,
   } = settings;
 
-  if (numberOfTeams !== 3 && numberOfTeams !== 4) {
-    return failingResult(0, "A quantidade de times deve ser 3 ou 4.");
+  if (numberOfTeams < 2) {
+    return failingResult(
+      0,
+      "São necessários pelo menos 2 times para o sorteio.",
+    );
+  }
+
+  if (playersPerTeam < 1) {
+    return failingResult(0, "É necessário pelo menos 1 jogador por time.");
+  }
+
+  const outOfScale = confirmed.find(
+    (p) => p.stars < 1 || p.stars > settings.starScale,
+  );
+  if (outOfScale) {
+    return failingResult(
+      0,
+      `Nota inválida para ${outOfScale.name}: use de 1 a ${settings.starScale}.`,
+    );
   }
 
   const required = numberOfTeams * playersPerTeam;
@@ -101,22 +120,27 @@ export function performDraw(
     positionTotals.set(p.position, (positionTotals.get(p.position) ?? 0) + 1),
   );
 
+  // Limites de elegibilidade derivados das configurações: a base equilibrada
+  // (floor/ceil da divisão) somada à tolerância escolhida pelo grupo.
   const maxPerPosition = new Map<Position, number>();
   POSITIONS.forEach((pos) =>
     maxPerPosition.set(
       pos,
-      Math.ceil((positionTotals.get(pos) ?? 0) / numberOfTeams),
+      Math.ceil((positionTotals.get(pos) ?? 0) / numberOfTeams) +
+        maxPositionDifference,
     ),
   );
-  const maxStarSumPerTeam = Math.ceil(totalStars / numberOfTeams);
+  const maxStarSumPerTeam =
+    Math.ceil(totalStars / numberOfTeams) + maxStarDifference;
 
   const weights = buildPairWeights(lastDraws);
+  const totalAttempts = Math.max(1, Math.round(maxAttempts));
 
   let best: { teams: DrawTeam[]; score: number } | null = null;
   let attempts = 0;
   let validAnalyzed = 0;
 
-  while (attempts < maxAttempts) {
+  while (attempts < totalAttempts) {
     attempts++;
 
     const teamNumbers = shuffle(
@@ -231,7 +255,9 @@ export function buildValidation(
   const starTotals = teams.map((t) =>
     t.players.reduce((sum, p) => sum + p.stars, 0),
   );
-  const sevenPerTeam = teams.every((t) => t.players.length === playersPerTeam);
+  const playersPerTeamOk = teams.every(
+    (t) => t.players.length === playersPerTeam,
+  );
   const goalkeepersDistributed = teams.every(
     (t) => t.players.filter((p) => p.position === "Goleiro").length <= 1,
   );
@@ -257,11 +283,13 @@ export function buildValidation(
   return {
     teams: teams.length > 0 ? teams.length : numberOfTeams,
     playersPerTeam,
-    sevenPerTeam,
+    playersPerTeamOk,
     goalkeepersDistributed,
     starDifferenceOk: starDifferenceValue <= maxStarDifference,
     starDifferenceValue,
+    maxStarDifference,
     positionDifferenceOk,
+    maxPositionDifference,
     repetitionScore,
     attempts,
   };

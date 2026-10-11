@@ -53,13 +53,15 @@ export function ValidationPanel({ validation }: ValidationPanelProps) {
       <div className="divide-y divide-border">
         <InfoRow label="Times" value={String(validation.teams)} />
         <StatusRow
-          label={`${validation.playersPerTeam} jogadores por time`}
+          label={`${validation.playersPerTeam} ${
+            validation.playersPerTeam === 1 ? "jogador" : "jogadores"
+          } por time`}
           detail={
-            validation.sevenPerTeam
+            validation.playersPerTeamOk
               ? "Todos os times completos"
               : "Algum time incompleto"
           }
-          ok={validation.sevenPerTeam}
+          ok={validation.playersPerTeamOk}
         />
         <StatusRow
           label="Goleiros distribuídos"
@@ -67,12 +69,12 @@ export function ValidationPanel({ validation }: ValidationPanelProps) {
           ok={validation.goalkeepersDistributed}
         />
         <StatusRow
-          label="Diferença de estrelas ≤ 1"
+          label={`Diferença de estrelas ≤ ${validation.maxStarDifference}`}
           detail={`Diferença atual: ${validation.starDifferenceValue}`}
           ok={validation.starDifferenceOk}
         />
         <StatusRow
-          label="Diferença por posição ≤ 1"
+          label={`Diferença por posição ≤ ${validation.maxPositionDifference}`}
           detail="Em todas as posições"
           ok={validation.positionDifferenceOk}
         />

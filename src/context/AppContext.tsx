@@ -76,8 +76,10 @@ function seedIfNeeded(): void {
   localStorage.setItem(STORAGE_KEYS.seeded, "1");
 }
 
-function clampStars(stars: number): number {
-  return Math.min(5, Math.max(1, Math.round(stars) || 1));
+function clampStars(stars: number, starScale: number): number {
+  const value = Math.round(Number(stars));
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(starScale, Math.max(1, value));
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -120,13 +122,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id: crypto.randomUUID(),
         name,
         position: input.position,
-        stars: clampStars(input.stars),
+        stars: clampStars(input.stars, settings.starScale),
         confirmed: input.confirmed,
       };
       setPlayers((prev) => sortPlayers([...prev, player]));
       return null;
     },
-    [players],
+    [players, settings.starScale],
   );
 
   const updatePlayer = useCallback(
@@ -144,7 +146,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                   ...p,
                   name,
                   position: input.position,
-                  stars: clampStars(input.stars),
+                  stars: clampStars(input.stars, settings.starScale),
                   confirmed: input.confirmed,
                 }
               : p,
@@ -153,7 +155,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       );
       return null;
     },
-    [players],
+    [players, settings.starScale],
   );
 
   const deletePlayer = useCallback((id: string) => {
@@ -172,7 +174,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     success: boolean;
     messages: string[];
   } => {
-    const { errors, players: normalized } = validateAndNormalizeRoster(players);
+    const { errors, players: normalized } = validateAndNormalizeRoster(
+      players,
+      settings.starScale,
+    );
     if (errors.length > 0) {
       return { success: false, messages: errors };
     }
@@ -194,7 +199,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const runDraw = useCallback((): DrawResult => {
     const confirmed = players.filter((p) => p.confirmed);
-    const lastDraws = history.slice(-Math.max(0, settings.historyWindow));
+    const windowSize = Math.max(0, Math.round(settings.historyWindow));
+    const lastDraws =
+      windowSize === 0 ? [] : history.slice(-windowSize);
     const result = performDraw(confirmed, settings, lastDraws);
     if (result.valid) {
       setCurrentDraw({

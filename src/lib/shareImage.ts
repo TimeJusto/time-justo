@@ -118,7 +118,10 @@ export async function generateShareImage(
   input: ShareImageInput,
 ): Promise<ShareImageResult> {
   const teams = input.teams.filter((t) => t.players.length > 0);
-  const playersPerTeam = Math.max(7, ...teams.map((t) => t.players.length));
+  const playersPerTeam = Math.max(
+    1,
+    ...teams.map((t) => t.players.length),
+  );
 
   const W = 1080;
   const PAD = 44;

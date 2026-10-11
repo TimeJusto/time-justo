@@ -44,9 +44,11 @@ export function deleteBaba(id: string): void {
   saveJSON(STORAGE_KEYS.history, history);
 }
 
-/** Últimos N babas salvos, para pontuação de repetição. */
+/** Últimos N sorteios salvos, para pontuação de repetição (0 = nenhum anterior). */
 export function getLastDraws(windowSize: number): Draw[] {
-  return getHistory().slice(-Math.max(0, windowSize));
+  const size = Math.max(0, Math.round(windowSize));
+  if (size === 0) return [];
+  return getHistory().slice(-size);
 }
 
 export function resetHistory(): void {

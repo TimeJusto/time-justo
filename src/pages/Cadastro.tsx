@@ -4,6 +4,7 @@ import { Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { useApp, type PlayerInput } from "@/context/AppContext";
 import type { Player, Position } from "@/types";
 import { POSITIONS, removeAccents } from "@/lib/normalize";
+import { starOptions } from "@/lib/scale";
 import { formatStars } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -315,10 +316,10 @@ export default function Cadastro() {
 
           <div className="rounded-xl border bg-card p-4">
             <h3 className="mb-2 text-sm font-bold uppercase tracking-wide">
-              Estrelas dos confirmados
+              Notas dos confirmados (1 a {settings.starScale})
             </h3>
             <div className="divide-y divide-border">
-              {[1, 2, 3, 4, 5].map((n) => (
+              {starOptions(settings.starScale).map((n) => (
                 <SummaryRow
                   key={n}
                   label={formatStars(n)}

@@ -11,6 +11,12 @@ import {
   type GameTerm,
 } from "@/lib/labels";
 import {
+  DEFAULT_STAR_SCALE,
+  STAR_SCALES,
+  isStarScale,
+  type StarScale,
+} from "@/lib/scale";
+import {
   APP_LOGO,
   DEFAULT_GROUP_NAME,
   GROUP_NAME_MAX_LENGTH,
@@ -43,10 +49,12 @@ export default function Configuracoes() {
     isGameTerm(form.gameTerm) ? form.gameTerm : DEFAULT_GAME_TERM,
   );
 
+  const requiredPlayers = form.numberOfTeams * form.playersPerTeam;
+
+  /** Campos numéricos: aceitam apenas dígitos (a validação acontece ao salvar). */
   const setNumber = (field: keyof Settings, raw: string) => {
-    const value = Number(raw);
-    if (Number.isNaN(value)) return;
-    setForm((prev) => ({ ...prev, [field]: value }));
+    const digits = raw.replace(/[^\d]/g, "");
+    setForm((prev) => ({ ...prev, [field]: digits === "" ? 0 : Number(digits) }));
   };
 
   const handleLogoChange = async (file: File | undefined) => {
@@ -57,29 +65,43 @@ export default function Configuracoes() {
       toast.success("Logo do grupo carregado.");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Não foi possível usar a imagem.",
+        error instanceof Error
+          ? error.message
+          : "Não foi possível usar a imagem.",
       );
     }
   };
 
   const handleSave = () => {
-    if (form.maxAttempts < 500) {
-      toast.error("O mínimo de tentativas é 500.");
+    if (form.numberOfTeams < 2) {
+      toast.error("A quantidade de times deve ser no mínimo 2.");
       return;
     }
-    if (form.numberOfTeams !== 3 && form.numberOfTeams !== 4) {
-      toast.error("A quantidade de times deve ser 3 ou 4.");
+    if (form.playersPerTeam < 1) {
+      toast.error("O número de jogadores por time deve ser no mínimo 1.");
       return;
     }
-    if (form.playersPerTeam < 5 || form.playersPerTeam > 11) {
-      toast.error("O número de jogadores por time deve estar entre 5 e 11.");
+    if (form.maxAttempts < 1) {
+      toast.error("O número de tentativas deve ser no mínimo 1.");
       return;
     }
 
-    const groupName =
-      form.groupName.trim().slice(0, GROUP_NAME_MAX_LENGTH) || DEFAULT_GROUP_NAME;
+    const normalized: Settings = {
+      ...form,
+      numberOfTeams: Math.max(2, Math.round(form.numberOfTeams)),
+      playersPerTeam: Math.max(1, Math.round(form.playersPerTeam)),
+      historyWindow: Math.max(0, Math.round(form.historyWindow)),
+      maxStarDifference: Math.max(0, Math.round(form.maxStarDifference)),
+      maxPositionDifference: Math.max(0, Math.round(form.maxPositionDifference)),
+      maxAttempts: Math.max(1, Math.round(form.maxAttempts)),
+      starScale: isStarScale(form.starScale) ? form.starScale : DEFAULT_STAR_SCALE,
+      groupName:
+        form.groupName.trim().slice(0, GROUP_NAME_MAX_LENGTH) ||
+        DEFAULT_GROUP_NAME,
+    };
 
-    saveSettings({ ...form, groupName });
+    saveSettings(normalized);
+    setForm(normalized);
     toast.success("Configurações salvas com sucesso.");
   };
 
@@ -129,7 +151,9 @@ export default function Configuracoes() {
                   onValueChange={(v) =>
                     setForm((prev) => ({
                       ...prev,
-                      gameTerm: (isGameTerm(v) ? v : DEFAULT_GAME_TERM) as GameTerm,
+                      gameTerm: (isGameTerm(v)
+                        ? v
+                        : DEFAULT_GAME_TERM) as GameTerm,
                     }))
                   }
                 >
@@ -199,31 +223,27 @@ export default function Configuracoes() {
           </div>
 
           <div className="rounded-xl border bg-card p-5">
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wide">
+            <h3 className="mb-1 text-sm font-bold uppercase tracking-wide">
               Parâmetros do sorteio
             </h3>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Jogadores necessários: {requiredPlayers} ({form.numberOfTeams}{" "}
+              {form.numberOfTeams === 1 ? "time" : "times"} ×{" "}
+              {form.playersPerTeam}{" "}
+              {form.playersPerTeam === 1 ? "jogador" : "jogadores"} por time)
+            </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="num-teams">Quantidade de times</Label>
-                <Select
-                  value={String(form.numberOfTeams)}
-                  onValueChange={(v) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      numberOfTeams: Number(v) as 3 | 4,
-                    }))
-                  }
-                >
-                  <SelectTrigger id="num-teams">
-                    <SelectValue placeholder="Times" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="3">3 times</SelectItem>
-                    <SelectItem value="4">4 times</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="num-teams"
+                  type="number"
+                  min={2}
+                  value={form.numberOfTeams}
+                  onChange={(e) => setNumber("numberOfTeams", e.target.value)}
+                />
                 <p className="text-xs text-muted-foreground">
-                  Somente 3 ou 4 times.
+                  Mínimo de 2 times, sem limite máximo.
                 </p>
               </div>
 
@@ -232,11 +252,42 @@ export default function Configuracoes() {
                 <Input
                   id="per-team"
                   type="number"
-                  min={5}
-                  max={11}
+                  min={1}
                   value={form.playersPerTeam}
                   onChange={(e) => setNumber("playersPerTeam", e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Mínimo de 1 jogador por time.
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="star-scale">Escala de notas</Label>
+                <Select
+                  value={String(form.starScale)}
+                  onValueChange={(v) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      starScale: (isStarScale(Number(v))
+                        ? Number(v)
+                        : DEFAULT_STAR_SCALE) as StarScale,
+                    }))
+                  }
+                >
+                  <SelectTrigger id="star-scale">
+                    <SelectValue placeholder="Escala" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STAR_SCALES.map((scale) => (
+                      <SelectItem key={scale} value={String(scale)}>
+                        Notas de 1 a {scale}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  As notas já cadastradas não são convertidas ao trocar a escala.
+                </p>
               </div>
 
               <div className="grid gap-2">
@@ -244,13 +295,12 @@ export default function Configuracoes() {
                 <Input
                   id="window"
                   type="number"
-                  min={1}
-                  max={30}
+                  min={0}
                   value={form.historyWindow}
                   onChange={(e) => setNumber("historyWindow", e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {formLabels.windowHint}
+                  {formLabels.windowHint} Use 0 para ignorar sorteios anteriores.
                 </p>
               </div>
 
@@ -260,12 +310,14 @@ export default function Configuracoes() {
                   id="star-diff"
                   type="number"
                   min={0}
-                  max={3}
                   value={form.maxStarDifference}
                   onChange={(e) =>
                     setNumber("maxStarDifference", e.target.value)
                   }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Diferença entre o maior e o menor total de estrelas dos times.
+                </p>
               </div>
 
               <div className="grid gap-2">
@@ -274,27 +326,27 @@ export default function Configuracoes() {
                   id="pos-diff"
                   type="number"
                   min={0}
-                  max={3}
                   value={form.maxPositionDifference}
                   onChange={(e) =>
                     setNumber("maxPositionDifference", e.target.value)
                   }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Diferença da quantidade de cada posição entre os times.
+                </p>
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="attempts">Máximo de tentativas</Label>
+                <Label htmlFor="attempts">Tentativas do sorteio</Label>
                 <Input
                   id="attempts"
                   type="number"
-                  min={500}
-                  max={100000}
-                  step={100}
+                  min={1}
                   value={form.maxAttempts}
                   onChange={(e) => setNumber("maxAttempts", e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Mínimo de 500 tentativas.
+                  Número exato de tentativas, sem mínimo oculto.
                 </p>
               </div>
             </div>
@@ -312,9 +364,15 @@ export default function Configuracoes() {
               Regras do sorteio
             </h3>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              <li>Mínimo de 500 tentativas</li>
+              <li>
+                {form.maxAttempts}{" "}
+                {form.maxAttempts === 1 ? "tentativa" : "tentativas"} por sorteio
+              </li>
               <li>Parar quando encontrar score de repetição zero</li>
               <li>Parar após analisar 300 combinações válidas</li>
+              <li>
+                Notas de 1 a {form.starScale} no cadastro e na contagem
+              </li>
             </ul>
             <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
               Modo rápido: testa combinações válidas e escolhe a de menor

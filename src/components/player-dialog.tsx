@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Player, Position } from "@/types";
 import { POSITIONS } from "@/lib/normalize";
+import { starOptions } from "@/lib/scale";
+import { useApp } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,21 +42,33 @@ export function PlayerDialog({
   initial,
   onSave,
 }: PlayerDialogProps) {
+  const { settings } = useApp();
+  const starScale = settings.starScale;
   const [name, setName] = useState("");
   const [position, setPosition] = useState<Position>("Meia");
   const [stars, setStars] = useState("3");
   const [confirmed, setConfirmed] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Mantém notas fora da escala atual visíveis para o usuário corrigir.
+  const options = useMemo(() => {
+    const base = starOptions(starScale);
+    const current = initial?.stars;
+    if (current && current >= 1 && !base.includes(current)) {
+      return [...base, current].sort((a, b) => a - b);
+    }
+    return base;
+  }, [starScale, initial]);
+
   useEffect(() => {
     if (open) {
       setName(initial?.name ?? "");
       setPosition(initial?.position ?? "Meia");
-      setStars(String(initial?.stars ?? 3));
+      setStars(String(initial?.stars ?? Math.min(3, starScale)));
       setConfirmed(initial?.confirmed ?? true);
       setError(null);
     }
-  }, [open, initial]);
+  }, [open, initial, starScale]);
 
   const handleSubmit = () => {
     const result = onSave({
@@ -115,13 +129,13 @@ export function PlayerDialog({
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="player-stars">Estrelas (1 a 5)</Label>
+              <Label htmlFor="player-stars">Nota (1 a {starScale})</Label>
               <Select value={stars} onValueChange={setStars}>
                 <SelectTrigger id="player-stars">
-                  <SelectValue placeholder="Estrelas" />
+                  <SelectValue placeholder="Nota" />
                 </SelectTrigger>
                 <SelectContent>
-                  {[1, 2, 3, 4, 5].map((n) => (
+                  {options.map((n) => (
                     <SelectItem key={n} value={String(n)}>
                       {n} ★
                     </SelectItem>
