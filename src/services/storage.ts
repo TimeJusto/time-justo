@@ -22,6 +22,10 @@ export function saveJSON<T>(key: string, value: T): void {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+export function removeKey(key: string): void {
+  localStorage.removeItem(key);
+}
+
 export function isSeeded(): boolean {
   return localStorage.getItem(STORAGE_KEYS.seeded) === "1";
 }

@@ -3,6 +3,9 @@
  */
 export const APP_NAME = "Time Justo";
 
+/** Versão exibida na página Sobre (acompanha a versão do package.json). */
+export const APP_VERSION = "1.0.0";
+
 /** Caminho do logo do aplicativo (arquivo em /public). */
 export const APP_LOGO = "/logo-time-justo.png";
 

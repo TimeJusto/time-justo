@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { ImagePlus, RotateCcw, Save, X } from "lucide-react";
+import { ImagePlus, RotateCcw, Save, ShieldCheck, Trash2, X } from "lucide-react";
 import type { Settings } from "@/types";
 import { useApp } from "@/context/AppContext";
 import {
@@ -36,9 +37,10 @@ import { Logo } from "@/components/logo";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export default function Configuracoes() {
-  const { settings, saveSettings, resetAll } = useApp();
+  const { settings, saveSettings, resetAll, clearAll } = useApp();
   const [form, setForm] = useState<Settings>(settings);
   const [resetOpen, setResetOpen] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -109,6 +111,12 @@ export default function Configuracoes() {
     resetAll();
     setResetOpen(false);
     toast.success("Dados iniciais restaurados com sucesso.");
+  };
+
+  const handleClear = () => {
+    clearAll();
+    setClearOpen(false);
+    toast.success("Todos os dados foram apagados deste aparelho.");
   };
 
   return (
@@ -385,13 +393,44 @@ export default function Configuracoes() {
               Zona de perigo
             </h3>
             <p className="mb-3 text-sm text-muted-foreground">
-              Restaura o cadastro, as configurações e o histórico para os
-              valores iniciais. Esta ação não pode ser desfeita.
+              Restaurar volta aos dados iniciais. Apagar remove tudo deste
+              aparelho e deixa o app vazio. Nenhuma das ações pode ser desfeita.
             </p>
-            <Button variant="destructive" onClick={() => setResetOpen(true)}>
-              <RotateCcw className="h-4 w-4" />
-              Restaurar dados iniciais
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                onClick={() => setResetOpen(true)}
+              >
+                <RotateCcw className="h-4 w-4" />
+                Restaurar dados iniciais
+              </Button>
+              <Button variant="destructive" onClick={() => setClearOpen(true)}>
+                <Trash2 className="h-4 w-4" />
+                Apagar todos os dados
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-card p-4">
+            <h3 className="mb-2 text-sm font-bold uppercase tracking-wide">
+              Sobre e privacidade
+            </h3>
+            <div className="flex flex-col items-start gap-2">
+              <Link
+                to="/sobre"
+                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Sobre o app e versão
+              </Link>
+              <Link
+                to="/privacidade"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                Política de Privacidade
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -404,6 +443,16 @@ export default function Configuracoes() {
         confirmLabel="Restaurar"
         destructive
         onConfirm={handleReset}
+      />
+
+      <ConfirmDialog
+        open={clearOpen}
+        onOpenChange={setClearOpen}
+        title="Apagar todos os dados?"
+        description="Isto remove o cadastro de jogadores, as configurações, o sorteio atual e o histórico salvos neste aparelho. Esta ação não pode ser desfeita."
+        confirmLabel="Apagar tudo"
+        destructive
+        onConfirm={handleClear}
       />
     </div>
   );

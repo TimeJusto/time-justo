@@ -5,6 +5,8 @@ import ElencoDoDia from "@/pages/ElencoDoDia";
 import Times from "@/pages/Times";
 import Configuracoes from "@/pages/Configuracoes";
 import Historico from "@/pages/Historico";
+import Privacidade from "@/pages/Privacidade";
+import Sobre from "@/pages/Sobre";
 import NotFound from "@/pages/NotFound";
 
 export const routers = [
@@ -23,6 +25,8 @@ export const routers = [
       { path: "times", name: "times", element: <Times /> },
       { path: "configuracoes", name: "configuracoes", element: <Configuracoes /> },
       { path: "historico", name: "historico", element: <Historico /> },
+      { path: "privacidade", name: "privacidade", element: <Privacidade /> },
+      { path: "sobre", name: "sobre", element: <Sobre /> },
     ],
   },
   /* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */

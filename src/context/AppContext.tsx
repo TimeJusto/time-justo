@@ -20,7 +20,7 @@ import {
   buildInitialPlayers,
   INITIAL_SETTINGS,
 } from "@/data/initialData";
-import { STORAGE_KEYS, saveJSON } from "@/services/storage";
+import { STORAGE_KEYS, removeKey, saveJSON } from "@/services/storage";
 import {
   getPlayers,
   isDuplicateName,
@@ -63,6 +63,7 @@ interface AppContextValue {
   saveBaba(): Draw | null;
   removeBaba(id: string): void;
   resetAll(): void;
+  clearAll(): void;
 }
 
 /** Na primeira execução, popula o localStorage com os dados iniciais. */
@@ -105,6 +106,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (currentDraw) saveCurrentDraw(currentDraw);
+    else removeKey(STORAGE_KEYS.currentDraw);
   }, [currentDraw]);
 
   useEffect(() => {
@@ -246,6 +248,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setHistory([]);
   }, []);
 
+  /** Apaga todos os dados deste aparelho (cadastro, configurações, sorteio e histórico). */
+  const clearAll = useCallback(() => {
+    setPlayers([]);
+    setSettings(INITIAL_SETTINGS);
+    setCurrentDraw(null);
+    setHistory([]);
+  }, []);
+
   const labels = useMemo<GameLabels>(
     () => getLabels(settings.gameTerm),
     [settings.gameTerm],
@@ -268,6 +278,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       saveBaba,
       removeBaba,
       resetAll,
+      clearAll,
     }),
     [
       players,
@@ -285,6 +296,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       saveBaba,
       removeBaba,
       resetAll,
+      clearAll,
     ],
   );
 
