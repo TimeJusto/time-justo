@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, Shuffle, Save, Share2, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Shuffle, Save, MessageCircle, AlertTriangle } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { DrawDiagnostics } from "@/types";
 import { buildValidation } from "@/algorithm/drawAlgorithm";
@@ -46,6 +46,11 @@ export default function Times() {
     [currentDraw],
   );
 
+  // O compartilhamento só aparece com um sorteio válido (todos os times completos).
+  const canShare = Boolean(
+    currentDraw && teams.length > 0 && validation?.playersPerTeamOk,
+  );
+
   const handleDraw = () => {
     const result = runDraw();
     if (!result.valid) {
@@ -89,15 +94,16 @@ export default function Times() {
           <Save className="h-5 w-5" />
           {labels.saveButton}
         </Button>
-        <Button
-          size="lg"
-          variant="secondary"
-          onClick={() => setShareOpen(true)}
-          disabled={!currentDraw}
-        >
-          <Share2 className="h-5 w-5" />
-          COMPARTILHAR
-        </Button>
+        {canShare ? (
+          <Button
+            size="lg"
+            variant="secondary"
+            onClick={() => setShareOpen(true)}
+          >
+            <MessageCircle className="h-5 w-5" />
+            COMPARTILHAR NO WHATSAPP
+          </Button>
+        ) : null}
         {currentDraw?.babaNumber != null ? (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-success-light px-3 py-1.5 text-sm font-semibold text-success">
             <CheckCircle2 className="h-4 w-4" />
@@ -157,12 +163,14 @@ export default function Times() {
         onConfirm={handleSaveConfirm}
       />
 
-      <ShareDialog
-        open={shareOpen}
-        onOpenChange={setShareOpen}
-        teams={currentDraw?.teams ?? []}
-        dateLabel={currentDraw?.date ?? formatDateBR(new Date())}
-      />
+      {canShare ? (
+        <ShareDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          teams={teams}
+          dateLabel={currentDraw?.date ?? formatDateBR(new Date())}
+        />
+      ) : null}
     </div>
   );
 }

@@ -8,6 +8,10 @@ import { downloadBlob, loadImage } from "@/lib/imageUtils";
 const FONT_STACK =
   'Aptos, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
+const MAX_COLUMNS = 4;
+/** Fator de renderização: deixa o PNG nítido em telas de celular. */
+const RENDER_SCALE = 2;
+
 function font(weight: number | string, size: number): string {
   return `${weight} ${size}px ${FONT_STACK}`;
 }
@@ -18,6 +22,12 @@ export interface ShareImageInput {
   teams: DrawTeam[];
   term: string;
   dateLabel: string;
+  /** Mostra estrelas individuais e o total do time (padrão: true). */
+  showStars?: boolean;
+  /** Subtítulo do cabeçalho; sem valor usa "termo • data". */
+  subtitle?: string;
+  /** Rótulo do escopo usado no nome do arquivo (ex.: "Time 3"). */
+  scopeLabel?: string;
 }
 
 export interface ShareImageResult {
@@ -75,7 +85,7 @@ function drawCircularImage(
   ctx.restore();
 }
 
-/** Ajusta o tamanho da fonte ao espaço disponível (e trunca com "…" se necessário). */
+/** Ajusta o tamanho da fonte ao espaço disponível (trunca com "…" se preciso). */
 function fitText(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -101,39 +111,46 @@ function fitText(
 }
 
 function safeFileName(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase() || "sorteio";
+  return (
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || "sorteio"
+  );
 }
 
 /**
- * Gera a imagem de compartilhamento com o nome e o logo do grupo no topo e a
- * faixa fixa da marca no rodapé. Todas as faixas são calculadas a partir do
- * conteúdo, garantindo que os cards nunca sejam cortados.
+ * Gera a imagem de compartilhamento usando os mesmos cards da tela:
+ * nome/logo do grupo no topo, cards em ordem numérica (até 4 por faixa) e a
+ * faixa fixa da marca no rodapé. A altura vem do conteúdo, sem cortes nem
+ * espaços em branco. Com `showStars: false`, as estrelas individuais e o total
+ * do time não são desenhados e o nome ocupa o espaço liberado.
  */
 export async function generateShareImage(
   input: ShareImageInput,
 ): Promise<ShareImageResult> {
+  const showStars = input.showStars ?? true;
   const teams = sortTeamsByNumber(
     input.teams.filter((t) => t.players.length > 0),
   );
-  const playersPerTeam = Math.max(
-    1,
-    ...teams.map((t) => t.players.length),
-  );
+  if (teams.length === 0) {
+    throw new Error("Nenhum time para compartilhar.");
+  }
 
-  const W = 1080;
+  const columns = Math.min(teams.length, MAX_COLUMNS);
+  const rows = Math.ceil(teams.length / columns);
+  const maxPlayers = Math.max(1, ...teams.map((t) => t.players.length));
+
   const PAD = 44;
+  const GAP = 24;
+  const CARD_W = columns >= 4 ? 380 : columns === 3 ? 400 : columns === 2 ? 440 : 520;
+  const W = PAD * 2 + columns * CARD_W + (columns - 1) * GAP;
   const HEADER_H = 170;
-  const GAP = 26;
-  const CARD_W = Math.floor((W - PAD * 2 - GAP) / 2);
   const CARD_HEADER_H = 88;
   const ROW_H = 52;
-  const CARD_H = CARD_HEADER_H + 26 + playersPerTeam * ROW_H;
-  const rows = Math.max(1, Math.ceil(teams.length / 2));
+  const CARD_H = CARD_HEADER_H + 26 + maxPlayers * ROW_H;
   const GRID_H = rows * CARD_H + (rows - 1) * GAP;
   const FOOTER_H = 152;
   const H = PAD + HEADER_H + GAP + GRID_H + GAP + FOOTER_H;
@@ -146,10 +163,14 @@ export async function generateShareImage(
   const cardImg = groupImg ?? appImg;
 
   const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
+  canvas.width = Math.round(W * RENDER_SCALE);
+  canvas.height = Math.round(H * RENDER_SCALE);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Não foi possível gerar a imagem.");
+  ctx.scale(RENDER_SCALE, RENDER_SCALE);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.textBaseline = "alphabetic";
 
   // Fundo
   ctx.fillStyle = "#F7F8F7";
@@ -158,30 +179,23 @@ export async function generateShareImage(
   // Cabeçalho: logo e nome do grupo
   if (headerImg) drawCircularImage(ctx, headerImg, PAD + 58, PAD + 70, 58);
   ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "#243F35";
-  const nameFit = fitText(
-    ctx,
-    input.groupName,
-    W - (PAD + 142) - PAD,
-    48,
-    "bold",
-    26,
-  );
+  const nameFit = fitText(ctx, input.groupName, W - (PAD + 142) - PAD, 48, "bold", 26);
   ctx.font = nameFit.font;
   ctx.fillText(nameFit.text, PAD + 142, PAD + 62);
 
   ctx.fillStyle = "#5B6B63";
   ctx.font = font(500, 26);
-  const subtitle = input.dateLabel
-    ? `${input.term} • ${input.dateLabel}`
-    : input.term;
-  ctx.fillText(subtitle, PAD + 142, PAD + 104);
+  ctx.fillText(
+    input.subtitle ?? (input.dateLabel ? `${input.term} • ${input.dateLabel}` : input.term),
+    PAD + 142,
+    PAD + 104,
+  );
 
-  // Cards dos times
+  // Cards dos times, sempre em ordem numérica
   teams.forEach((team, index) => {
-    const col = index % 2;
-    const row = Math.floor(index / 2);
+    const col = index % columns;
+    const row = Math.floor(index / columns);
     const x = PAD + col * (CARD_W + GAP);
     const y = PAD + HEADER_H + GAP + row * (CARD_H + GAP);
     const colors = teamColor(team.teamNumber);
@@ -213,37 +227,61 @@ export async function generateShareImage(
     ctx.fillText(`Esquema ${formatEsquema(team)}`, x + 96, y + 72);
     ctx.globalAlpha = 1;
 
-    ctx.textAlign = "right";
-    ctx.font = font("bold", 38);
-    ctx.fillText(String(totalStars), x + CARD_W - 22, y + 46);
-    ctx.globalAlpha = 0.85;
-    ctx.font = font(500, 18);
-    ctx.fillText("ESTRELAS", x + CARD_W - 22, y + 72);
-    ctx.globalAlpha = 1;
+    if (showStars) {
+      ctx.textAlign = "right";
+      ctx.font = font("bold", 38);
+      ctx.fillText(String(totalStars), x + CARD_W - 22, y + 46);
+      ctx.globalAlpha = 0.85;
+      ctx.font = font(500, 18);
+      ctx.fillText("ESTRELAS", x + CARD_W - 22, y + 72);
+      ctx.globalAlpha = 1;
+    }
     ctx.textAlign = "left";
 
     players.forEach((player, playerIndex) => {
       const baseY = y + CARD_HEADER_H + 32 + playerIndex * ROW_H;
       ctx.fillStyle = colors.text;
-      const namePlayer = fitText(
-        ctx,
-        player.playerName,
-        CARD_W - 22 - 200,
-        28,
-        500,
-        20,
-      );
-      ctx.font = namePlayer.font;
-      ctx.fillText(namePlayer.text, x + 22, baseY);
 
-      ctx.textAlign = "right";
-      ctx.font = font("bold", 26);
-      ctx.fillText(`${player.stars} ★`, x + CARD_W - 22, baseY);
-      ctx.globalAlpha = 0.65;
-      ctx.font = font(400, 20);
-      ctx.fillText(player.position, x + CARD_W - 118, baseY);
-      ctx.globalAlpha = 1;
-      ctx.textAlign = "left";
+      if (showStars) {
+        const namePlayer = fitText(
+          ctx,
+          player.playerName,
+          CARD_W - 22 - 200,
+          28,
+          500,
+          20,
+        );
+        ctx.font = namePlayer.font;
+        ctx.fillText(namePlayer.text, x + 22, baseY);
+
+        ctx.textAlign = "right";
+        ctx.font = font("bold", 26);
+        ctx.fillText(`${player.stars} ★`, x + CARD_W - 22, baseY);
+        ctx.globalAlpha = 0.65;
+        ctx.font = font(400, 20);
+        ctx.fillText(player.position, x + CARD_W - 118, baseY);
+        ctx.globalAlpha = 1;
+        ctx.textAlign = "left";
+      } else {
+        // Sem estrelas: o nome usa o espaço liberado e a posição vai à direita.
+        const namePlayer = fitText(
+          ctx,
+          player.playerName,
+          CARD_W - 22 - 110,
+          28,
+          500,
+          20,
+        );
+        ctx.font = namePlayer.font;
+        ctx.fillText(namePlayer.text, x + 22, baseY);
+
+        ctx.textAlign = "right";
+        ctx.globalAlpha = 0.65;
+        ctx.font = font(400, 20);
+        ctx.fillText(player.position, x + CARD_W - 22, baseY);
+        ctx.globalAlpha = 1;
+        ctx.textAlign = "left";
+      }
 
       if (playerIndex < players.length - 1) {
         ctx.strokeStyle = colors.medium;
@@ -291,10 +329,15 @@ export async function generateShareImage(
     }, "image/png");
   });
 
+  const appSlug = safeFileName(APP_NAME);
+  const scopeSlug = input.scopeLabel
+    ? `${safeFileName(input.scopeLabel)}-`
+    : "";
   const stamp = input.dateLabel
     ? safeFileName(input.dateLabel)
     : safeFileName(input.groupName);
-  return { blob, fileName: `${APP_NAME.toLowerCase().replace(/\s+/g, "-")}-${stamp}.png` };
+
+  return { blob, fileName: `${appSlug}-${scopeSlug}${stamp}.png` };
 }
 
 interface ShareCapableNavigator extends Navigator {
@@ -302,7 +345,25 @@ interface ShareCapableNavigator extends Navigator {
   share?: (data: { files?: File[]; title?: string; text?: string }) => Promise<void>;
 }
 
-/** Compartilha a imagem (WhatsApp e afins) ou baixa quando não houver suporte. */
+/** Indica se o navegador consegue compartilhar arquivos (Web Share API). */
+export function canShareFiles(): boolean {
+  const nav = navigator as ShareCapableNavigator;
+  if (typeof nav.canShare !== "function" || typeof nav.share !== "function") {
+    return false;
+  }
+  try {
+    return nav.canShare({
+      files: [new File([""], "teste.png", { type: "image/png" })],
+    });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Compartilha a imagem pelo menu do sistema (o usuário escolhe o WhatsApp).
+ * Sem suporte a arquivos, baixa o PNG e devolve "downloaded".
+ */
 export async function shareOrDownload(
   blob: Blob,
   fileName: string,
@@ -310,11 +371,19 @@ export async function shareOrDownload(
   const nav = navigator as ShareCapableNavigator;
   const file = new File([blob], fileName, { type: "image/png" });
 
-  if (typeof nav.canShare === "function" && nav.canShare({ files: [file] }) && nav.share) {
+  if (canShareFiles() && nav.share) {
     await nav.share({ files: [file], title: APP_NAME, text: APP_TAGLINE });
     return "shared";
   }
 
   downloadBlob(blob, fileName);
   return "downloaded";
+}
+
+/** Link do WhatsApp com a orientação para anexar a imagem baixada. */
+export function whatsAppShareUrl(): string {
+  const message =
+    `Sorteio dos times no ${APP_NAME}! A imagem foi baixada — ` +
+    "anexe aqui no WhatsApp para enviar ao grupo.";
+  return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
