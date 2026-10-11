@@ -16,9 +16,12 @@ export default defineConfig(({ mode }) => {
         short_name: 'Time Justo',
         description: 'Sorteio equilibrado de times para o seu grupo.',
         lang: 'pt-BR',
+        id: '/',
         start_url: '/',
         scope: '/',
         display: 'standalone',
+        orientation: 'portrait',
+        categories: ['sports', 'utilities'],
         theme_color: '#243F35',
         background_color: '#F7F8F7',
         icons: [
