@@ -2,6 +2,8 @@ import type { DrawTeam } from "@/types";
 import { sortTeamPlayers } from "@/lib/normalize";
 import { formatEsquema, formatStars } from "@/lib/format";
 import { headerTextColor, teamColor } from "@/lib/teamColors";
+import { APP_LOGO } from "@/lib/brand";
+import { useApp } from "@/context/AppContext";
 import { Logo } from "@/components/logo";
 
 interface TeamCardProps {
@@ -11,6 +13,8 @@ interface TeamCardProps {
 
 /** Card de um time com cores próprias, logo, jogadores ordenados, total e esquema tático. */
 export function TeamCard({ team, compact = false }: TeamCardProps) {
+  const { settings } = useApp();
+  const cardLogo = settings.groupLogo ?? APP_LOGO;
   const colors = teamColor(team.teamNumber);
   const players = sortTeamPlayers(team.players);
   const totalStars = players.reduce((sum, p) => sum + p.stars, 0);
@@ -29,7 +33,12 @@ export function TeamCard({ team, compact = false }: TeamCardProps) {
         className="flex items-center gap-3 px-4 py-3"
         style={{ backgroundColor: colors.strong, color: headerColor }}
       >
-        <Logo size={compact ? 28 : 36} className="bg-transparent" />
+        <Logo
+          src={cardLogo}
+          size={compact ? 28 : 36}
+          className="bg-transparent"
+          alt={`Logo de ${settings.groupName}`}
+        />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-bold uppercase tracking-wide">
             Time {team.teamNumber}

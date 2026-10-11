@@ -21,13 +21,13 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 }
 
 export default function Historico() {
-  const { history, settings, removeBaba } = useApp();
+  const { history, settings, labels, removeBaba } = useApp();
   const [numberFilter, setNumberFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Draw | null>(null);
 
-  const lastBaba = history[history.length - 1];
+  const lastDraw = history[history.length - 1];
 
   const filtered = useMemo(() => {
     const filteredHistory = history.filter((d) => {
@@ -46,7 +46,7 @@ export default function Historico() {
     if (!deleting) return;
     removeBaba(deleting.id);
     if (expandedId === deleting.id) setExpandedId(null);
-    toast.success(`Baba ${deleting.babaNumber} excluído do Histórico.`);
+    toast.success(labels.deletedToast(deleting.babaNumber));
     setDeleting(null);
   };
 
@@ -54,23 +54,23 @@ export default function Historico() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground">Histórico</h2>
-        <p className="text-sm text-muted-foreground">
-          Babas salvos com seus times completos.
-        </p>
+        <p className="text-sm text-muted-foreground">{labels.historySubtitle}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <StatCard label="Babas salvos" value={history.length} />
-        <StatCard label="Data do último baba" value={lastBaba?.date ?? "—"} />
+        <StatCard label={labels.savedCountLabel} value={history.length} />
+        <StatCard label={labels.lastDateLabel} value={lastDraw?.date ?? "—"} />
         <StatCard
           label="Janela usada"
-          value={lastBaba ? `${lastBaba.historyWindow} baba(s)` : `${settings.historyWindow} baba(s)`}
+          value={labels.windowCount(
+            lastDraw ? lastDraw.historyWindow : settings.historyWindow,
+          )}
         />
       </div>
 
       {history.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-card p-10 text-center text-muted-foreground">
-          Nenhum baba salvo ainda. Faça um sorteio e clique em SALVAR BABA.
+          {labels.emptyHistory}
         </div>
       ) : (
         <>
@@ -87,7 +87,7 @@ export default function Historico() {
             <Input
               type="number"
               min={1}
-              placeholder="Filtrar por número do baba"
+              placeholder={labels.numberFilterPlaceholder}
               value={numberFilter}
               onChange={(e) => setNumberFilter(e.target.value)}
             />
@@ -96,7 +96,7 @@ export default function Historico() {
           <div className="space-y-3">
             {filtered.length === 0 ? (
               <div className="rounded-xl border border-dashed bg-card p-8 text-center text-muted-foreground">
-                Nenhum baba encontrado com os filtros informados.
+                {labels.emptyFiltered}
               </div>
             ) : (
               filtered.map((draw) => {
@@ -113,7 +113,7 @@ export default function Historico() {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block font-semibold text-foreground">
-                          Baba {draw.babaNumber}
+                          {labels.itemTitle(draw.babaNumber)}
                         </span>
                         <span className="block text-xs text-muted-foreground">
                           {draw.date} · {draw.teams.length} times ·{" "}
@@ -144,7 +144,7 @@ export default function Historico() {
                             onClick={() => setDeleting(draw)}
                           >
                             <Trash2 className="h-4 w-4" />
-                            Excluir baba
+                            {labels.deleteButton}
                           </Button>
                         </div>
                       </div>
@@ -162,10 +162,10 @@ export default function Historico() {
         onOpenChange={(open) => {
           if (!open) setDeleting(null);
         }}
-        title="Excluir baba do Histórico?"
+        title={labels.deleteConfirmTitle}
         description={
           deleting
-            ? `O Baba ${deleting.babaNumber} (${deleting.date}) será removido permanentemente.`
+            ? labels.deleteConfirmDescription(deleting.babaNumber, deleting.date)
             : undefined
         }
         confirmLabel="Excluir"

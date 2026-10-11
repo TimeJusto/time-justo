@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, Shuffle, Save, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Shuffle, Save, Share2, AlertTriangle } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { DrawDiagnostics } from "@/types";
 import { buildValidation } from "@/algorithm/drawAlgorithm";
+import { formatDateBR } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { TeamCard } from "@/components/team-card";
 import { ValidationPanel } from "@/components/validation-panel";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ShareDialog } from "@/components/share-dialog";
 
 function DiagnosticItem({ label, value }: { label: string; value: string | number }) {
   return (
@@ -19,8 +21,9 @@ function DiagnosticItem({ label, value }: { label: string; value: string | numbe
 }
 
 export default function Times() {
-  const { currentDraw, settings, runDraw, saveBaba } = useApp();
+  const { currentDraw, settings, labels, runDraw, saveBaba } = useApp();
   const [saveOpen, setSaveOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [diagnostics, setDiagnostics] = useState<DrawDiagnostics | null>(null);
 
   const validation = useMemo(
@@ -51,7 +54,7 @@ export default function Times() {
     const saved = saveBaba();
     setSaveOpen(false);
     if (saved) {
-      toast.success(`Baba ${saved.babaNumber} salvo no Histórico.`);
+      toast.success(labels.savedToast(saved.babaNumber));
     }
   };
 
@@ -77,12 +80,21 @@ export default function Times() {
           className="border-success/40 text-success hover:bg-success-light"
         >
           <Save className="h-5 w-5" />
-          SALVAR BABA
+          {labels.saveButton}
+        </Button>
+        <Button
+          size="lg"
+          variant="secondary"
+          onClick={() => setShareOpen(true)}
+          disabled={!currentDraw}
+        >
+          <Share2 className="h-5 w-5" />
+          COMPARTILHAR
         </Button>
         {currentDraw?.babaNumber != null ? (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-success-light px-3 py-1.5 text-sm font-semibold text-success">
             <CheckCircle2 className="h-4 w-4" />
-            Baba {currentDraw.babaNumber} salvo no Histórico
+            {labels.savedBadge(currentDraw.babaNumber)}
           </span>
         ) : null}
       </div>
@@ -132,10 +144,17 @@ export default function Times() {
       <ConfirmDialog
         open={saveOpen}
         onOpenChange={setSaveOpen}
-        title="Salvar este sorteio como o baba definitivo?"
-        description="O sorteio será registrado no Histórico com o número sequencial do baba e a data de hoje."
-        confirmLabel="Salvar baba"
+        title={labels.saveConfirmTitle}
+        description={labels.saveConfirmDescription}
+        confirmLabel={labels.saveConfirmLabel}
         onConfirm={handleSaveConfirm}
+      />
+
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        teams={currentDraw?.teams ?? []}
+        dateLabel={currentDraw?.date ?? formatDateBR(new Date())}
       />
     </div>
   );

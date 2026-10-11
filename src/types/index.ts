@@ -1,3 +1,5 @@
+import type { GameTerm } from "@/lib/labels";
+
 export type Position = "Atacante" | "Meia" | "Zagueiro" | "Goleiro";
 
 export interface Player {
@@ -15,6 +17,12 @@ export interface Settings {
   maxStarDifference: number;
   maxPositionDifference: number;
   maxAttempts: number;
+  /** Nome do grupo exibido no cabeçalho (até 40 caracteres). */
+  groupName: string;
+  /** Logo do grupo (data URL) ou null para usar APP_LOGO. */
+  groupLogo: string | null;
+  /** Como o grupo chama o jogo. */
+  gameTerm: GameTerm;
 }
 
 export interface DrawPlayer {

@@ -37,6 +37,7 @@ import {
 } from "@/services/drawService";
 import { performDraw } from "@/algorithm/drawAlgorithm";
 import { normalizeName, sortPlayers } from "@/lib/normalize";
+import { getLabels, type GameLabels } from "@/lib/labels";
 
 export interface PlayerInput {
   name: string;
@@ -50,6 +51,8 @@ interface AppContextValue {
   settings: Settings;
   currentDraw: CurrentDraw | null;
   history: Draw[];
+  /** Rótulos exibidos conforme o termo escolhido para o jogo. */
+  labels: GameLabels;
   addPlayer(input: PlayerInput): string | null;
   updatePlayer(id: string, input: PlayerInput): string | null;
   deletePlayer(id: string): void;
@@ -236,12 +239,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setHistory([]);
   }, []);
 
+  const labels = useMemo<GameLabels>(
+    () => getLabels(settings.gameTerm),
+    [settings.gameTerm],
+  );
+
   const value = useMemo<AppContextValue>(
     () => ({
       players,
       settings,
       currentDraw,
       history,
+      labels,
       addPlayer,
       updatePlayer,
       deletePlayer,
@@ -258,6 +267,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       settings,
       currentDraw,
       history,
+      labels,
       addPlayer,
       updatePlayer,
       deletePlayer,

@@ -1,0 +1,17 @@
+{
+  "name": "Time Justo",
+  "short_name": "Time Justo",
+  "description": "Sorteio justo de times para o seu grupo.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7F8F7",
+  "theme_color": "#243F35",
+  "icons": [
+    {
+      "src": "/logo-time-justo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

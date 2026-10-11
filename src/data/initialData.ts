@@ -1,4 +1,6 @@
 import type { CurrentDraw, DrawPlayer, Player, Position, Settings } from "@/types";
+import { DEFAULT_GAME_TERM } from "@/lib/labels";
+import { DEFAULT_GROUP_NAME } from "@/lib/brand";
 
 export const INITIAL_SETTINGS: Settings = {
   numberOfTeams: 4,
@@ -7,6 +9,9 @@ export const INITIAL_SETTINGS: Settings = {
   maxStarDifference: 1,
   maxPositionDifference: 1,
   maxAttempts: 500,
+  groupName: DEFAULT_GROUP_NAME,
+  groupLogo: null,
+  gameTerm: DEFAULT_GAME_TERM,
 };
 
 type RawPlayer = [name: string, position: string, stars: number, confirmed: boolean];

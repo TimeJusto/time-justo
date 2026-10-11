@@ -53,6 +53,7 @@ export default function Cadastro() {
   const {
     players,
     settings,
+    labels,
     addPlayer,
     updatePlayer,
     deletePlayer,
@@ -334,7 +335,7 @@ export default function Cadastro() {
               <li>Clique ATUALIZAR LISTA</li>
               <li>Confira o elenco do dia</li>
               <li>Clique SORTEAR em Times</li>
-              <li>Após confirmar, clique SALVAR BABA</li>
+              <li>Após confirmar, clique {labels.saveButton}</li>
             </ol>
           </div>
         </aside>

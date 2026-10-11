@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useApp } from "@/context/AppContext";
+import { APP_LOGO, APP_NAME, DEFAULT_GROUP_NAME } from "@/lib/brand";
 import { Logo } from "@/components/logo";
 
 interface NavItem {
@@ -26,14 +28,34 @@ const NAV_ITEMS: NavItem[] = [
 
 /** Cabeçalho + navegação (tabs no desktop, menu inferior no mobile). */
 export function Layout() {
+  const { settings } = useApp();
+  const groupName = settings.groupName?.trim() || DEFAULT_GROUP_NAME;
+  const groupLogo = settings.groupLogo ?? APP_LOGO;
+
   return (
     <div className="flex min-h-dvh flex-col bg-background">
       <header className="sticky top-0 z-40 bg-primary text-primary-foreground shadow-md">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-center gap-3 px-4 py-4">
-          <Logo size={42} className="bg-transparent ring-2 ring-white/20" />
-          <h1 className="text-center text-xl font-bold tracking-wide sm:text-2xl">
-            BABA DOS KBRITEIROS
-          </h1>
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-1.5 px-4 pb-3 pt-3">
+          {/* Assinatura do aplicativo */}
+          <div className="flex items-center gap-1.5 text-white/65">
+            <Logo src={APP_LOGO} size={18} className="bg-transparent" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.2em]">
+              {APP_NAME}
+            </span>
+          </div>
+
+          {/* Marca do grupo em destaque */}
+          <div className="flex max-w-full items-center gap-3">
+            <Logo
+              src={groupLogo}
+              size={46}
+              className="bg-transparent ring-2 ring-white/25"
+              alt={`Logo de ${groupName}`}
+            />
+            <h1 className="min-w-0 truncate text-center text-xl font-bold tracking-wide sm:text-2xl">
+              {groupName}
+            </h1>
+          </div>
         </div>
         <nav className="mx-auto hidden w-full max-w-6xl gap-1 px-4 pb-3 md:flex">
           {NAV_ITEMS.map((item) => (
