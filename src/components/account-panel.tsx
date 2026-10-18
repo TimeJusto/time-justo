@@ -29,7 +29,7 @@ export function AccountPanel() {
     loading,
     signOut,
   } = useAuth();
-  const { lastSyncAt, syncStatus, trialLeft } = useApp();
+  const { lastSyncAt, syncStatus, trialLeft, liveSyncAt } = useApp();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -57,6 +57,8 @@ export function AccountPanel() {
         minute: "2-digit",
       })
     : "—";
+
+  const justSynced = liveSyncAt !== null && Date.now() - liveSyncAt < 60000;
 
   const handleSignOut = async () => {
     await signOut();
@@ -122,7 +124,9 @@ export function AccountPanel() {
             ) : null}
             {isCloud ? (
               <p className="mt-1 text-xs">
-                Última sincronização: {lastSyncText}
+                {justSynced
+                  ? "Sincronizado agora"
+                  : `Última sincronização: ${lastSyncText}`}
               </p>
             ) : null}
             {isCloud && syncStatus === "pending" ? (

@@ -45,6 +45,7 @@ import {
   markTombstone,
   pushEntities,
   readLocalSnapshot,
+  setLastSync,
   setLocalOwner,
   setLocalUpdatedAt,
   writeLocal,
@@ -107,6 +108,8 @@ interface AppContextValue {
   cloudMode: boolean;
   syncStatus: SyncStatus;
   lastSyncAt: number | null;
+  /** Momento da última atualização vinda da nuvem (realtime ou busca periódica). */
+  liveSyncAt: number | null;
   online: boolean;
   premiumChoiceOpen: boolean;
   resolvePremiumChoice(choice: "device" | "cloud"): Promise<void>;
@@ -173,6 +176,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [lastSyncAt, setLastSyncAtState] = useState<number | null>(() =>
     getLastSync(),
   );
+  /** Momento da última atualização recebida da nuvem (realtime ou busca). */
+  const [liveSyncAt, setLiveSyncAt] = useState<number | null>(null);
   const [premiumChoiceOpen, setPremiumChoiceOpen] = useState(false);
   const [premiumNotice, setPremiumNotice] = useState<PremiumNoticeKind | null>(
     null,
@@ -624,7 +629,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [applySnapshot],
   );
 
-  /** Busca a nuvem e aplica apenas o que for mais novo (usado no foco/realtime). */
+  /** Busca a nuvem e aplica apenas o que for mais novo (foco, realtime, 30s). */
   const pullCloud = useCallback(async () => {
     if (!userId || !isCloud) return;
     const cloud = await fetchCloudSnapshot(userId);
@@ -632,24 +637,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const local = readLocalSnapshot();
     const localUpdatedAt = getLocalUpdatedAt();
+    const remoteChanged =
+      cloud.updatedAt.players > localUpdatedAt.players ||
+      cloud.updatedAt.settings > localUpdatedAt.settings ||
+      cloud.updatedAt.currentDraw > localUpdatedAt.currentDraw ||
+      cloud.updatedAt.history > localUpdatedAt.history;
+
     const merged = chooseNewerSnapshots(local, localUpdatedAt, cloud);
 
     const signature = JSON.stringify(merged.snapshot);
-    if (signature === pullSignatureRef.current) return;
-    pullSignatureRef.current = signature;
+    if (signature !== pullSignatureRef.current) {
+      pullSignatureRef.current = signature;
+      applySnapshot(merged.snapshot);
+      writeLocal(merged.snapshot, 0);
+      setLocalUpdatedAt({
+        players: Math.max(localUpdatedAt.players, cloud.updatedAt.players),
+        settings: Math.max(localUpdatedAt.settings, cloud.updatedAt.settings),
+        currentDraw: Math.max(
+          localUpdatedAt.currentDraw,
+          cloud.updatedAt.currentDraw,
+        ),
+        history: Math.max(localUpdatedAt.history, cloud.updatedAt.history),
+      });
+    }
 
-    applySnapshot(merged.snapshot);
-    writeLocal(merged.snapshot, 0);
-    setLocalUpdatedAt({
-      players: Math.max(localUpdatedAt.players, cloud.updatedAt.players),
-      settings: Math.max(localUpdatedAt.settings, cloud.updatedAt.settings),
-      currentDraw: Math.max(
-        localUpdatedAt.currentDraw,
-        cloud.updatedAt.currentDraw,
-      ),
-      history: Math.max(localUpdatedAt.history, cloud.updatedAt.history),
-    });
-    setLastSyncAtState(getLastSync());
+    if (remoteChanged) {
+      const at = Date.now();
+      setLastSync(at);
+      setLastSyncAtState(at);
+      setLiveSyncAt(at);
+    }
 
     if (merged.push.length > 0) {
       const ok = await pushEntities(
@@ -701,8 +718,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [isCloud, userId, pullCloud]);
 
+  // Garantia: enquanto o app estiver aberto e visível, busca a cada 30 segundos.
   useEffect(() => {
     if (!isCloud || !userId) return;
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") void pullCloud();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isCloud, userId, pullCloud]);
+
+  // Tempo real das próprias linhas; reassina ao voltar a internet ou trocar de conta.
+  useEffect(() => {
+    if (!isCloud || !userId || !online) return;
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     const schedule = () => {
@@ -744,13 +773,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         },
         schedule,
       )
-      .subscribe();
+      .subscribe((status) => {
+        // Ao confirmar a assinatura, busca a nuvem uma vez.
+        if (status === "SUBSCRIBED") schedule();
+      });
 
     return () => {
       if (timer) clearTimeout(timer);
       void supabase.removeChannel(channel);
     };
-  }, [isCloud, userId, pullCloud]);
+  }, [isCloud, userId, online, pullCloud]);
 
   useEffect(() => {
     const handleOnline = () => setOnline(true);
@@ -850,6 +882,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       cloudMode: isCloud,
       syncStatus,
       lastSyncAt,
+      liveSyncAt,
       online,
       premiumChoiceOpen,
       resolvePremiumChoice,
@@ -883,6 +916,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isCloud,
       syncStatus,
       lastSyncAt,
+      liveSyncAt,
       online,
       premiumChoiceOpen,
       resolvePremiumChoice,

@@ -1,0 +1,4 @@
+-- Payload completo (inclusive exclusões) para o filtro user_id funcionar.
+alter table public.players replica identity full;
+alter table public.app_settings replica identity full;
+alter table public.matches replica identity full;
