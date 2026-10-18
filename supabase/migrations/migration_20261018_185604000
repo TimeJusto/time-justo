@@ -1,0 +1,19 @@
+-- 1) Adiciona o domínio da Vercel à lista de redirecionamentos permitidos (somente acrescenta).
+update auth.config_settings
+   set value = value || ',https://timejusto.vercel.app,https://timejusto.vercel.app/,https://timejusto.vercel.app/**',
+       updated_at = now()
+ where key = 'GOTRUE_URI_ALLOW_LIST'
+   and value not like '%timejusto.vercel.app%';
+
+-- 2) Confirma manualmente apenas a conta administradora (email_confirmed_at).
+-- confirmed_at é coluna gerada, por isso não é escrita.
+update auth.users
+   set email_confirmed_at = coalesce(email_confirmed_at, now()),
+       confirmation_token = '',
+       updated_at = now()
+ where lower(email) = 'timejusto.app@gmail.com';
+
+-- 3) Garante role = 'admin' no perfil dessa mesma conta (idempotente).
+update public.profiles
+   set role = 'admin'
+ where lower(email) = 'timejusto.app@gmail.com';

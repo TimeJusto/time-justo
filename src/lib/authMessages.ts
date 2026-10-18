@@ -8,6 +8,9 @@ export function authErrorMessage(message: string): string {
   if (normalized.includes("email not confirmed")) {
     return "Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.";
   }
+  if (normalized.includes("already confirmed")) {
+    return "Este e-mail já está confirmado. Faça login.";
+  }
   if (normalized.includes("user already registered")) {
     return "Já existe uma conta com este e-mail.";
   }
