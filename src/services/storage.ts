@@ -17,6 +17,47 @@ export const REPO_KEYS = {
   drawUsage: `${PREFIX}draw-usage`,
 } as const;
 
+/** Espaço dos dados do aparelho (plano Grátis, sem login). */
+export const DEVICE_SCOPE = "device";
+
+/** Espaço dos dados de uma conta com nuvem (separado do aparelho). */
+export function accountScope(userId: string): string {
+  return `acct-${userId}`;
+}
+
+export interface ScopeKeys {
+  players: string;
+  settings: string;
+  currentDraw: string;
+  history: string;
+  meta: string;
+}
+
+/**
+ * Cada espaço tem as próprias chaves: os dados do aparelho nunca se misturam
+ * com os da conta. O espaço do aparelho usa as chaves já existentes.
+ */
+export function scopeKeys(scope: string): ScopeKeys {
+  if (scope === DEVICE_SCOPE) {
+    return {
+      players: STORAGE_KEYS.players,
+      settings: STORAGE_KEYS.settings,
+      currentDraw: STORAGE_KEYS.currentDraw,
+      history: STORAGE_KEYS.history,
+      meta: REPO_KEYS.meta,
+    };
+  }
+
+  const prefix = `${PREFIX}${scope}:`;
+  return {
+    players: `${prefix}players`,
+    settings: `${prefix}settings`,
+    currentDraw: `${prefix}current-draw`,
+    history: `${prefix}history`,
+    meta: `${prefix}meta`,
+  };
+}
+
 export function loadJSON<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);

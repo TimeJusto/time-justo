@@ -14,7 +14,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useApp } from "@/context/AppContext";
-import { clearLocalData } from "@/services/repository";
+import { clearScope } from "@/services/repository";
+import { accountScope } from "@/services/storage";
 import { formatDateBR } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -67,13 +68,14 @@ export function AccountPanel() {
 
   const handleDelete = async () => {
     setBusy(true);
+    const accountId = user?.id;
     try {
       const { error } = await supabase.functions.invoke("delete-account", {
         body: {},
       });
       if (error) throw error;
+      if (accountId) clearScope(accountScope(accountId));
       await signOut();
-      clearLocalData();
       toast.success("Sua conta e seus dados foram excluídos.");
       navigate("/");
     } catch {

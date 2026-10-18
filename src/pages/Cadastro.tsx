@@ -112,6 +112,15 @@ export default function Cadastro() {
     }
   };
 
+  const handleAddClick = () => {
+    if (limits.maxPlayers !== null && players.length >= limits.maxPlayers) {
+      showPremiumNotice("players");
+      return;
+    }
+    setEditing(null);
+    setDialogOpen(true);
+  };
+
   const handleDelete = () => {
     if (!deleting) return;
     deletePlayer(deleting.id);
@@ -129,19 +138,7 @@ export default function Cadastro() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={() => {
-              if (
-                limits.maxPlayers !== null &&
-                players.length >= limits.maxPlayers
-              ) {
-                showPremiumNotice("players");
-                return;
-              }
-              setEditing(null);
-              setDialogOpen(true);
-            }}
-          >
+          <Button onClick={handleAddClick}>
             <Plus className="h-4 w-4" />
             Adicionar jogador
           </Button>
@@ -197,6 +194,22 @@ export default function Cadastro() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
         <div className="overflow-hidden rounded-xl border bg-card">
+          {players.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="text-base font-semibold text-foreground">
+                Cadastre os jogadores do seu grupo
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Adicione cada jogador com a posição e a nota. Depois marque quem
+                está confirmado para o elenco do dia.
+              </p>
+              <Button className="mt-4" onClick={handleAddClick}>
+                <Plus className="h-4 w-4" />
+                Cadastrar jogador
+              </Button>
+            </div>
+          ) : (
+          <>
           {/* Tabela no desktop */}
           <div className="hidden overflow-x-auto md:block">
             <Table>
@@ -307,6 +320,8 @@ export default function Cadastro() {
               ))
             )}
           </ul>
+          </>
+          )}
         </div>
 
         <aside className="h-fit space-y-4">

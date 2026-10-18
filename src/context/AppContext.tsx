@@ -20,11 +20,11 @@ import type {
   SyncStatus,
 } from "@/types";
 import {
-  buildInitialCurrentDraw,
-  buildInitialPlayers,
-  INITIAL_SETTINGS,
-} from "@/data/initialData";
-import { isSeeded, markSeeded } from "@/services/storage";
+  DEVICE_SCOPE,
+  accountScope,
+  isSeeded,
+  markSeeded,
+} from "@/services/storage";
 import { supabase } from "@/integrations/supabase/client";
 import {
   isDuplicateName,
@@ -34,22 +34,19 @@ import {
   ALL_ENTITIES,
   EMPTY_SNAPSHOT,
   chooseNewerSnapshots,
-  clearLocalData,
+  clearScope,
   fetchCloudSnapshot,
   getLastSync,
-  getLocalOwner,
   getLocalUpdatedAt,
   getQueue,
   hasLocalData,
   markQueued,
   markTombstone,
   pushEntities,
-  readLocalSnapshot,
+  readSnapshot,
   setLastSync,
-  setLocalOwner,
   setLocalUpdatedAt,
-  writeLocal,
-  type CloudSnapshot,
+  writeSnapshot,
   type EntityKey,
 } from "@/services/repository";
 import {
@@ -111,8 +108,10 @@ interface AppContextValue {
   /** Momento da última atualização vinda da nuvem (realtime ou busca periódica). */
   liveSyncAt: number | null;
   online: boolean;
-  premiumChoiceOpen: boolean;
-  resolvePremiumChoice(choice: "device" | "cloud"): Promise<void>;
+  /** Pergunta para levar os dados do aparelho quando a conta está vazia. */
+  deviceUpload: { players: number } | null;
+  acceptDeviceUpload(): Promise<void>;
+  declineDeviceUpload(): void;
   refreshAccount(): Promise<void>;
   premiumNotice: PremiumNoticeKind | null;
   showPremiumNotice(kind: PremiumNoticeKind): void;
@@ -122,16 +121,10 @@ interface AppContextValue {
 /** Estrelas aceitas pelo cadastro (o plano limita a entrada, não os dados antigos). */
 const MAX_STARS_ABSOLUTE = 10;
 
-/** Na primeira execução, popula o armazenamento com os dados iniciais. */
+/** Primeira execução: app começa vazio, apenas com as configurações padrão. */
 function seedIfNeeded(): void {
   if (isSeeded()) return;
-  const players = buildInitialPlayers();
-  writeLocal({
-    players,
-    settings: INITIAL_SETTINGS,
-    currentDraw: buildInitialCurrentDraw(players),
-    history: [],
-  });
+  writeSnapshot(DEVICE_SCOPE, { ...EMPTY_SNAPSHOT });
   markSeeded();
 }
 
@@ -155,18 +148,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   } = useAuth();
   const userId = user?.id ?? null;
 
-  const [players, setPlayers] = useState<Player[]>(() => {
-    seedIfNeeded();
-    return readLocalSnapshot().players;
-  });
+  /** Espaço em uso: dados do aparelho ou da conta com nuvem (nunca misturados). */
+  const activeScope =
+    isCloud && userId ? accountScope(userId) : DEVICE_SCOPE;
+
+  const [players, setPlayers] = useState<Player[]>(
+    () => readSnapshot(DEVICE_SCOPE).players,
+  );
   const [settings, setSettings] = useState<Settings>(
-    () => readLocalSnapshot().settings,
+    () => readSnapshot(DEVICE_SCOPE).settings,
   );
   const [currentDraw, setCurrentDraw] = useState<CurrentDraw | null>(
-    () => readLocalSnapshot().currentDraw,
+    () => readSnapshot(DEVICE_SCOPE).currentDraw,
   );
   const [history, setHistory] = useState<Draw[]>(
-    () => readLocalSnapshot().history,
+    () => readSnapshot(DEVICE_SCOPE).history,
   );
 
   const [online, setOnline] = useState<boolean>(() =>
@@ -176,18 +172,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [lastSyncAt, setLastSyncAtState] = useState<number | null>(() =>
     getLastSync(),
   );
-  /** Momento da última atualização recebida da nuvem (realtime ou busca). */
   const [liveSyncAt, setLiveSyncAt] = useState<number | null>(null);
-  const [premiumChoiceOpen, setPremiumChoiceOpen] = useState(false);
+  const [deviceUpload, setDeviceUpload] = useState<{ players: number } | null>(
+    null,
+  );
   const [premiumNotice, setPremiumNotice] = useState<PremiumNoticeKind | null>(
     null,
   );
 
-  const pendingCloudRef = useRef<CloudSnapshot | null>(null);
-  const transitionRef = useRef<{ userId: string | null; cloud: boolean }>({
-    userId: null,
-    cloud: false,
-  });
+  const scopeRef = useRef<string>(DEVICE_SCOPE);
+  const pendingDeviceRef = useRef<{
+    userId: string;
+    scope: string;
+    snapshot: AppDataSnapshot;
+  } | null>(null);
   const pullSignatureRef = useRef<string>("");
   const lastNetworkToastRef = useRef<number>(0);
   const trialDrawRef = useRef<number>(0);
@@ -229,27 +227,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setHistory(snapshot.history);
   }, []);
 
-  /** Grava no aparelho e, no Premium, envia para a nuvem (com fila offline). */
+  /** Grava no espaço em uso e, na conta com nuvem, envia para o servidor. */
   const persist = useCallback(
     (patch: Partial<AppDataSnapshot>, entities: EntityKey[]) => {
+      const scope = scopeRef.current;
       const at = Date.now();
-      writeLocal(patch, at);
+      writeSnapshot(scope, patch, at);
 
-      if (!isCloud || !userId) return;
+      if (!isCloud || !userId || scope === DEVICE_SCOPE) return;
 
       if (!navigator.onLine) {
-        markQueued(entities);
+        markQueued(scope, entities);
         setSyncStatus("pending");
         return;
       }
 
       setSyncStatus("syncing");
-      void pushEntities(userId, readLocalSnapshot(), entities, at).then((ok) => {
+      void pushEntities(
+        scope,
+        userId,
+        readSnapshot(scope),
+        entities,
+        at,
+      ).then((ok) => {
         if (ok) {
           setSyncStatus("idle");
           setLastSyncAtState(getLastSync());
         } else {
-          markQueued(entities);
+          markQueued(scope, entities);
           setSyncStatus(navigator.onLine ? "error" : "pending");
           if (navigator.onLine) showNetworkToast();
         }
@@ -328,7 +333,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deletePlayer = useCallback(
     (id: string) => {
-      markTombstone("players", id);
+      markTombstone(scopeRef.current, "players", id);
       commit(
         { players: players.filter((player) => player.id !== id) },
         ["players"],
@@ -357,7 +362,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     success: boolean;
     messages: string[];
   } => {
-    // Validação usa o limite absoluto (10) para não invalidar notas antigas.
     const { errors, players: normalized } = validateAndNormalizeRoster(
       players,
       MAX_STARS_ABSOLUTE,
@@ -381,7 +385,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const saveSettingsCb = useCallback(
     (next: Settings) => {
       const clamped = applyPlanLimits(next, limits);
-      // O logo do grupo não é apagado no Grátis — apenas não é usado.
       const preserved = limits.allowGroupLogo
         ? clamped
         : { ...clamped, groupLogo: settings.groupLogo };
@@ -390,7 +393,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [commit, limits, settings.groupLogo],
   );
 
-  /** Consome 1 partida do teste grátis (no máximo 1 por dia, no servidor). */
   const registerTrialDraw = useCallback(async () => {
     if (!userId || premiumSource !== "trial") return;
     const now = Date.now();
@@ -406,11 +408,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [userId, premiumSource, refreshProfile]);
 
   const runDraw = useCallback((): DrawResult => {
-    // Limite de dias/sorteios do plano Grátis.
-    if (
-      limits.maxDrawDaysPerMonth !== null &&
-      limits.maxDrawsPerDay !== null
-    ) {
+    if (limits.maxDrawDaysPerMonth !== null && limits.maxDrawsPerDay !== null) {
       const allowance = checkDrawAllowance(
         readDrawUsage(),
         localDayKey(),
@@ -421,12 +419,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setPremiumNotice(
           allowance.reason === "dayLimit" ? "drawsPerDay" : "drawDays",
         );
-        return {
-          valid: false,
-          teams: [],
-          repetitionScore: 0,
-          attempts: 0,
-        };
+        return { valid: false, teams: [], repetitionScore: 0, attempts: 0 };
       }
     }
 
@@ -476,7 +469,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       history.reduce((max, draw) => Math.max(max, draw.babaNumber), 0) + 1;
     const now = new Date();
     const saved: Draw = {
-      id: currentDraw.id === "initial-draw" ? crypto.randomUUID() : currentDraw.id,
+      id: currentDraw.id,
       babaNumber: nextNumber,
       date: formatDateBR(now),
       historyWindow: effectiveSettings.historyWindow,
@@ -503,7 +496,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const removeBaba = useCallback(
     (id: string) => {
-      markTombstone("matches", id);
+      markTombstone(scopeRef.current, "matches", id);
       commit(
         { history: history.filter((draw) => draw.id !== id) },
         ["history"],
@@ -512,131 +505,150 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [history, commit],
   );
 
+  /** Volta o espaço em uso ao padrão: sem jogadores, sem histórico, configurações padrão. */
   const resetAll = useCallback(() => {
-    players.forEach((player) => markTombstone("players", player.id));
-    history.forEach((draw) => markTombstone("matches", draw.id));
-    const initialPlayers = buildInitialPlayers();
-    commit(
-      {
-        players: initialPlayers,
-        settings: INITIAL_SETTINGS,
-        currentDraw: buildInitialCurrentDraw(initialPlayers),
-        history: [],
-      },
-      ALL_ENTITIES,
+    players.forEach((player) =>
+      markTombstone(scopeRef.current, "players", player.id),
     );
+    history.forEach((draw) =>
+      markTombstone(scopeRef.current, "matches", draw.id),
+    );
+    commit({ ...EMPTY_SNAPSHOT }, ALL_ENTITIES);
   }, [players, history, commit]);
 
   const clearAll = useCallback(() => {
-    players.forEach((player) => markTombstone("players", player.id));
-    history.forEach((draw) => markTombstone("matches", draw.id));
+    players.forEach((player) =>
+      markTombstone(scopeRef.current, "players", player.id),
+    );
+    history.forEach((draw) =>
+      markTombstone(scopeRef.current, "matches", draw.id),
+    );
     commit({ ...EMPTY_SNAPSHOT }, ALL_ENTITIES);
   }, [players, history, commit]);
 
   /* ---------------------------------------------------------------- */
-  /* Entrada / saída do modo nuvem                                     */
+  /* Entrada na conta com nuvem                                        */
   /* ---------------------------------------------------------------- */
 
-  const enterCloud = useCallback(
-    async (uid: string) => {
+  const enterCloudAccount = useCallback(
+    async (uid: string, scope: string) => {
       setSyncStatus("syncing");
       const cloud = await fetchCloudSnapshot(uid);
 
       if (!cloud) {
-        markQueued(ALL_ENTITIES);
         setSyncStatus(navigator.onLine ? "error" : "pending");
         if (navigator.onLine) showNetworkToast();
+        // Sem rede: mostra o espelho local da conta, se existir.
+        applySnapshot(readSnapshot(scope));
         return;
       }
 
-      const local = readLocalSnapshot();
-      const localHas = hasLocalData(local);
-      const owner = getLocalOwner();
-
-      if (cloud.empty) {
-        let ok = true;
-        if (localHas) {
-          ok = await pushEntities(uid, local, ALL_ENTITIES, Date.now());
-          if (!ok) markQueued(ALL_ENTITIES);
-          if (ok) toast.success("Dados do aparelho enviados para a nuvem.");
-        }
-        setLocalOwner(uid);
-        setSyncStatus(ok ? "idle" : "pending");
-        setLastSyncAtState(getLastSync());
-        return;
-      }
-
-      if (!localHas) {
+      // A conta já tem dados: usa SOMENTE a nuvem (nunca junta com o aparelho).
+      if (!cloud.empty) {
         applySnapshot(cloud.snapshot);
-        writeLocal(cloud.snapshot, 0);
-        setLocalUpdatedAt(cloud.updatedAt);
-        setLocalOwner(uid);
+        writeSnapshot(scope, cloud.snapshot, 0);
+        setLocalUpdatedAt(scope, cloud.updatedAt);
+        const at = Date.now();
+        setLastSync(at);
+        setLastSyncAtState(at);
         setSyncStatus("idle");
-        setLastSyncAtState(getLastSync());
-        toast.success("Dados da nuvem baixados para o aparelho.");
         return;
       }
 
-      if (owner === uid) {
-        const localUpdatedAt = getLocalUpdatedAt();
-        const merged = chooseNewerSnapshots(local, localUpdatedAt, cloud);
-        applySnapshot(merged.snapshot);
-        writeLocal(merged.snapshot, 0);
-        setLocalUpdatedAt({
-          players: Math.max(localUpdatedAt.players, cloud.updatedAt.players),
-          settings: Math.max(localUpdatedAt.settings, cloud.updatedAt.settings),
-          currentDraw: Math.max(
-            localUpdatedAt.currentDraw,
-            cloud.updatedAt.currentDraw,
-          ),
-          history: Math.max(localUpdatedAt.history, cloud.updatedAt.history),
-        });
-        setLocalOwner(uid);
-
-        if (merged.push.length > 0) {
-          const ok = await pushEntities(
-            uid,
-            merged.snapshot,
-            merged.push,
-            Date.now(),
-          );
-          if (!ok) markQueued(merged.push);
-        }
-
-        setSyncStatus("idle");
-        setLastSyncAtState(getLastSync());
-        return;
-      }
-
-      pendingCloudRef.current = cloud;
-      setPremiumChoiceOpen(true);
+      // Conta sem dados: começa no padrão e pergunta se quer levar o aparelho.
+      applySnapshot(EMPTY_SNAPSHOT);
+      writeSnapshot(scope, { ...EMPTY_SNAPSHOT }, 0);
       setSyncStatus("idle");
+
+      const deviceSnapshot = readSnapshot(DEVICE_SCOPE);
+      if (hasLocalData(deviceSnapshot) && deviceSnapshot.players.length > 0) {
+        pendingDeviceRef.current = {
+          userId: uid,
+          scope,
+          snapshot: deviceSnapshot,
+        };
+        setDeviceUpload({ players: deviceSnapshot.players.length });
+      }
     },
     [applySnapshot, showNetworkToast],
   );
 
-  const leaveCloud = useCallback(
-    async (uid: string) => {
-      setSyncStatus("syncing");
-      const cloud = await fetchCloudSnapshot(uid);
-      if (cloud && !cloud.empty) {
-        applySnapshot(cloud.snapshot);
-        writeLocal(cloud.snapshot, Date.now());
-        toast.success("Cópia dos dados da nuvem salva no aparelho.");
-      }
-      setSyncStatus("idle");
-    },
-    [applySnapshot],
-  );
+  const acceptDeviceUpload = useCallback(async () => {
+    const pending = pendingDeviceRef.current;
+    pendingDeviceRef.current = null;
+    setDeviceUpload(null);
+    if (!pending) return;
 
-  /** Busca a nuvem e aplica apenas o que for mais novo (foco, realtime, 30s). */
+    const { userId: uid, scope, snapshot } = pending;
+    applySnapshot(snapshot);
+    writeSnapshot(scope, snapshot, 0);
+    setSyncStatus("syncing");
+    const ok = await pushEntities(
+      scope,
+      uid,
+      snapshot,
+      ALL_ENTITIES,
+      Date.now(),
+    );
+    setSyncStatus(ok ? "idle" : "pending");
+    if (!ok) markQueued(scope, ALL_ENTITIES);
+    if (ok) {
+      const at = Date.now();
+      setLastSync(at);
+      setLastSyncAtState(at);
+      toast.success("Dados do aparelho enviados para a sua conta.");
+    }
+  }, [applySnapshot]);
+
+  const declineDeviceUpload = useCallback(() => {
+    pendingDeviceRef.current = null;
+    setDeviceUpload(null);
+  }, []);
+
+  /** Troca de espaço: aparelho ↔ conta. Nunca mistura os dois. */
+  useEffect(() => {
+    if (authLoading) return;
+    if (activeScope === scopeRef.current) return;
+
+    const previous = scopeRef.current;
+    scopeRef.current = activeScope;
+
+    if (activeScope === DEVICE_SCOPE) {
+      if (previous !== DEVICE_SCOPE) {
+        if (userId) {
+          // Continua logado, mas sem nuvem: traz uma cópia só se o aparelho
+          // ainda não tiver dados próprios (nada é sobrescrito).
+          const accountSnapshot = readSnapshot(previous);
+          if (
+            hasLocalData(accountSnapshot) &&
+            !hasLocalData(readSnapshot(DEVICE_SCOPE))
+          ) {
+            writeSnapshot(DEVICE_SCOPE, accountSnapshot, Date.now());
+          }
+        } else {
+          // Saiu da conta: limpa a cópia local daquela conta.
+          clearScope(previous);
+        }
+      }
+      applySnapshot(readSnapshot(DEVICE_SCOPE));
+      setSyncStatus("idle");
+      setLiveSyncAt(null);
+      return;
+    }
+
+    if (userId) void enterCloudAccount(userId, activeScope);
+  }, [authLoading, activeScope, userId, applySnapshot, enterCloudAccount]);
+
+  /** Busca a nuvem e aplica o que estiver mais novo (foco, realtime, 30s). */
   const pullCloud = useCallback(async () => {
-    if (!userId || !isCloud) return;
+    const scope = scopeRef.current;
+    if (!userId || !isCloud || scope === DEVICE_SCOPE) return;
+
     const cloud = await fetchCloudSnapshot(userId);
     if (!cloud || cloud.empty) return;
 
-    const local = readLocalSnapshot();
-    const localUpdatedAt = getLocalUpdatedAt();
+    const local = readSnapshot(scope);
+    const localUpdatedAt = getLocalUpdatedAt(scope);
     const remoteChanged =
       cloud.updatedAt.players > localUpdatedAt.players ||
       cloud.updatedAt.settings > localUpdatedAt.settings ||
@@ -649,8 +661,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (signature !== pullSignatureRef.current) {
       pullSignatureRef.current = signature;
       applySnapshot(merged.snapshot);
-      writeLocal(merged.snapshot, 0);
-      setLocalUpdatedAt({
+      writeSnapshot(scope, merged.snapshot, 0);
+      setLocalUpdatedAt(scope, {
         players: Math.max(localUpdatedAt.players, cloud.updatedAt.players),
         settings: Math.max(localUpdatedAt.settings, cloud.updatedAt.settings),
         currentDraw: Math.max(
@@ -670,42 +682,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     if (merged.push.length > 0) {
       const ok = await pushEntities(
+        scope,
         userId,
         merged.snapshot,
         merged.push,
         Date.now(),
       );
-      if (!ok) markQueued(merged.push);
+      if (!ok) markQueued(scope, merged.push);
     }
   }, [userId, isCloud, applySnapshot]);
 
-  useEffect(() => {
-    if (authLoading) return;
-
-    const previous = transitionRef.current;
-    transitionRef.current = { userId, cloud: isCloud };
-
-    if (!userId) {
-      if (previous.userId && previous.cloud) {
-        clearLocalData();
-        applySnapshot(EMPTY_SNAPSHOT);
-        setLastSyncAtState(null);
-        setSyncStatus("idle");
-      }
-      return;
-    }
-
-    if (isCloud && (!previous.cloud || previous.userId !== userId)) {
-      void enterCloud(userId);
-      return;
-    }
-
-    if (!isCloud && previous.cloud && previous.userId === userId) {
-      void leaveCloud(userId);
-    }
-  }, [authLoading, userId, isCloud, enterCloud, leaveCloud, applySnapshot]);
-
-  // Nuvem ao abrir/voltar ao app + tempo real das próprias linhas.
   useEffect(() => {
     if (!isCloud || !userId) return;
 
@@ -720,14 +706,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Garantia: enquanto o app estiver aberto e visível, busca a cada 30 segundos.
   useEffect(() => {
-    if (!isCloud || !userId) return;
+    if (!isCloud || !userId || !online) return;
 
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") void pullCloud();
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [isCloud, userId, pullCloud]);
+  }, [isCloud, userId, online, pullCloud]);
 
   // Tempo real das próprias linhas; reassina ao voltar a internet ou trocar de conta.
   useEffect(() => {
@@ -796,61 +782,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!online || !isCloud || !userId) return;
-    const queued = getQueue();
+    const scope = scopeRef.current;
+    if (!online || !isCloud || !userId || scope === DEVICE_SCOPE) return;
+    const queued = getQueue(scope);
     if (queued.length === 0) return;
 
     setSyncStatus("syncing");
-    void pushEntities(userId, readLocalSnapshot(), [...queued], Date.now()).then(
-      (ok) => {
-        if (ok) {
-          setSyncStatus("idle");
-          setLastSyncAtState(getLastSync());
-          toast.success("Alterações sincronizadas.");
-        } else {
-          setSyncStatus("error");
-          showNetworkToast();
-        }
-      },
-    );
-  }, [online, isCloud, userId, showNetworkToast]);
-
-  const resolvePremiumChoice = useCallback(
-    async (choice: "device" | "cloud") => {
-      const uid = userId;
-      const cloud = pendingCloudRef.current;
-      pendingCloudRef.current = null;
-      setPremiumChoiceOpen(false);
-      if (!uid || !cloud) return;
-
-      if (choice === "cloud") {
-        applySnapshot(cloud.snapshot);
-        writeLocal(cloud.snapshot, 0);
-        setLocalUpdatedAt(cloud.updatedAt);
-        setLocalOwner(uid);
+    void pushEntities(
+      scope,
+      userId,
+      readSnapshot(scope),
+      [...queued],
+      Date.now(),
+    ).then((ok) => {
+      if (ok) {
         setSyncStatus("idle");
         setLastSyncAtState(getLastSync());
-        toast.success("Dados da nuvem aplicados neste aparelho.");
-        return;
+        toast.success("Alterações sincronizadas.");
+      } else {
+        setSyncStatus("error");
+        showNetworkToast();
       }
-
-      setSyncStatus("syncing");
-      const ok = await pushEntities(
-        uid,
-        readLocalSnapshot(),
-        ALL_ENTITIES,
-        Date.now(),
-      );
-      setLocalOwner(uid);
-      setSyncStatus(ok ? "idle" : "pending");
-      if (!ok) markQueued(ALL_ENTITIES);
-      if (ok) {
-        setLastSyncAtState(getLastSync());
-        toast.success("Dados do aparelho enviados para a nuvem.");
-      }
-    },
-    [userId, applySnapshot],
-  );
+    });
+  }, [online, isCloud, userId, showNetworkToast]);
 
   const refreshAccount = useCallback(async () => {
     await refreshProfile();
@@ -884,8 +838,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       lastSyncAt,
       liveSyncAt,
       online,
-      premiumChoiceOpen,
-      resolvePremiumChoice,
+      deviceUpload,
+      acceptDeviceUpload,
+      declineDeviceUpload,
       refreshAccount,
       premiumNotice,
       showPremiumNotice,
@@ -918,8 +873,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       lastSyncAt,
       liveSyncAt,
       online,
-      premiumChoiceOpen,
-      resolvePremiumChoice,
+      deviceUpload,
+      acceptDeviceUpload,
+      declineDeviceUpload,
       refreshAccount,
       premiumNotice,
       showPremiumNotice,

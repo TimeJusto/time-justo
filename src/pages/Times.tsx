@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { CheckCircle2, Shuffle, Save, MessageCircle, AlertTriangle } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  MessageCircle,
+  Save,
+  Shuffle,
+  UserPlus,
+} from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { DrawDiagnostics } from "@/types";
 import { buildValidation } from "@/algorithm/drawAlgorithm";
@@ -22,7 +30,8 @@ function DiagnosticItem({ label, value }: { label: string; value: string | numbe
 }
 
 export default function Times() {
-  const { currentDraw, effectiveSettings, labels, runDraw, saveBaba } = useApp();
+  const { currentDraw, effectiveSettings, players, labels, runDraw, saveBaba } =
+    useApp();
   const [saveOpen, setSaveOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [diagnostics, setDiagnostics] = useState<DrawDiagnostics | null>(null);
@@ -149,8 +158,28 @@ export default function Times() {
           ) : null}
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed bg-card p-10 text-center text-muted-foreground">
-          Nenhum sorteio realizado ainda. Clique em SORTEAR TIMES.
+        <div className="rounded-xl border border-dashed bg-card p-10 text-center">
+          {players.length === 0 ? (
+            <>
+              <p className="text-base font-semibold text-foreground">
+                Cadastre os jogadores do seu grupo
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Adicione os jogadores e confirme quem vai jogar para sortear os
+                times.
+              </p>
+              <Button asChild className="mt-4">
+                <Link to="/cadastro">
+                  <UserPlus className="h-4 w-4" />
+                  Cadastrar jogadores
+                </Link>
+              </Button>
+            </>
+          ) : (
+            <p className="text-muted-foreground">
+              Nenhum sorteio realizado ainda. Clique em SORTEAR TIMES.
+            </p>
+          )}
         </div>
       )}
 

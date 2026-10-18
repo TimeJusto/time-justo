@@ -9,7 +9,7 @@ import type {
 } from "@/types";
 import type { Json } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
-import { STORAGE_KEYS, REPO_KEYS, loadJSON, saveJSON, removeKey } from "./storage";
+import { REPO_KEYS, loadJSON, saveJSON, removeKey, scopeKeys } from "./storage";
 import { normalizeSettings } from "./settingsService";
 import { INITIAL_SETTINGS } from "@/data/initialData";
 
@@ -43,11 +43,11 @@ const EMPTY_META: RepoMeta = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Metadados locais                                                    */
+/* Metadados locais (por espaço: aparelho ou conta)                    */
 /* ------------------------------------------------------------------ */
 
-export function readRepoMeta(): RepoMeta {
-  const raw = loadJSON<Partial<RepoMeta>>(REPO_KEYS.meta, {});
+export function readRepoMeta(scope: string): RepoMeta {
+  const raw = loadJSON<Partial<RepoMeta>>(scopeKeys(scope).meta, {});
   return {
     entities: { ...EMPTY_META.entities, ...(raw.entities ?? {}) },
     tombstones: {
@@ -59,46 +59,50 @@ export function readRepoMeta(): RepoMeta {
   };
 }
 
-function writeRepoMeta(meta: RepoMeta): void {
-  saveJSON(REPO_KEYS.meta, meta);
+function writeRepoMeta(scope: string, meta: RepoMeta): void {
+  saveJSON(scopeKeys(scope).meta, meta);
 }
 
-export function getLocalUpdatedAt(): Record<EntityKey, number> {
-  return readRepoMeta().entities;
+export function getLocalUpdatedAt(scope: string): Record<EntityKey, number> {
+  return readRepoMeta(scope).entities;
 }
 
-export function setLocalUpdatedAt(entities: Record<EntityKey, number>): void {
-  const meta = readRepoMeta();
+export function setLocalUpdatedAt(
+  scope: string,
+  entities: Record<EntityKey, number>,
+): void {
+  const meta = readRepoMeta(scope);
   meta.entities = { ...meta.entities, ...entities };
-  writeRepoMeta(meta);
+  writeRepoMeta(scope, meta);
 }
 
 export function markTombstone(
+  scope: string,
   kind: "players" | "matches",
   id: string,
   at = Date.now(),
 ): void {
-  const meta = readRepoMeta();
+  const meta = readRepoMeta(scope);
   meta.tombstones[kind][id] = at;
-  writeRepoMeta(meta);
+  writeRepoMeta(scope, meta);
 }
 
-export function markQueued(entities: EntityKey[]): void {
-  const meta = readRepoMeta();
+export function markQueued(scope: string, entities: EntityKey[]): void {
+  const meta = readRepoMeta(scope);
   meta.queue = [...new Set([...meta.queue, ...entities])];
   meta.queuedAt = Date.now();
-  writeRepoMeta(meta);
+  writeRepoMeta(scope, meta);
 }
 
-export function clearQueue(): void {
-  const meta = readRepoMeta();
+export function clearQueue(scope: string): void {
+  const meta = readRepoMeta(scope);
   meta.queue = [];
   meta.queuedAt = null;
-  writeRepoMeta(meta);
+  writeRepoMeta(scope, meta);
 }
 
-export function getQueue(): EntityKey[] {
-  return readRepoMeta().queue;
+export function getQueue(scope: string): EntityKey[] {
+  return readRepoMeta(scope).queue;
 }
 
 export function setLastSync(at: number): void {
@@ -110,27 +114,19 @@ export function getLastSync(): number | null {
   return typeof value === "number" ? value : null;
 }
 
-export function setLocalOwner(userId: string | null): void {
-  if (userId) saveJSON(REPO_KEYS.owner, userId);
-  else removeKey(REPO_KEYS.owner);
-}
-
-export function getLocalOwner(): string | null {
-  return loadJSON<string | null>(REPO_KEYS.owner, null);
-}
-
 /* ------------------------------------------------------------------ */
-/* Cópia local (usada por todo o app)                                  */
+/* Dados locais                                                        */
 /* ------------------------------------------------------------------ */
 
-export function readLocalSnapshot(): AppDataSnapshot {
+export function readSnapshot(scope: string): AppDataSnapshot {
+  const keys = scopeKeys(scope);
   return {
-    players: loadJSON<Player[]>(STORAGE_KEYS.players, []),
+    players: loadJSON<Player[]>(keys.players, []),
     settings: normalizeSettings(
-      loadJSON<Partial<Settings> | null>(STORAGE_KEYS.settings, null),
+      loadJSON<Partial<Settings> | null>(keys.settings, null),
     ),
-    currentDraw: loadJSON<CurrentDraw | null>(STORAGE_KEYS.currentDraw, null),
-    history: loadJSON<Draw[]>(STORAGE_KEYS.history, []),
+    currentDraw: loadJSON<CurrentDraw | null>(keys.currentDraw, null),
+    history: loadJSON<Draw[]>(keys.history, []),
   };
 }
 
@@ -142,41 +138,37 @@ export function hasLocalData(snapshot: AppDataSnapshot): boolean {
   );
 }
 
-/** Grava a cópia local e marca os conjuntos alterados com o horário. */
-export function writeLocal(
+/** Grava no espaço indicado e marca os conjuntos alterados com o horário. */
+export function writeSnapshot(
+  scope: string,
   patch: Partial<AppDataSnapshot>,
   at = Date.now(),
 ): void {
-  if (patch.players !== undefined) {
-    saveJSON(STORAGE_KEYS.players, patch.players);
-  }
-  if (patch.settings !== undefined) {
-    saveJSON(STORAGE_KEYS.settings, patch.settings);
-  }
-  if (patch.currentDraw !== undefined) {
-    if (patch.currentDraw) saveJSON(STORAGE_KEYS.currentDraw, patch.currentDraw);
-    else removeKey(STORAGE_KEYS.currentDraw);
-  }
-  if (patch.history !== undefined) {
-    saveJSON(STORAGE_KEYS.history, patch.history);
-  }
+  const keys = scopeKeys(scope);
 
-  const meta = readRepoMeta();
+  if (patch.players !== undefined) saveJSON(keys.players, patch.players);
+  if (patch.settings !== undefined) saveJSON(keys.settings, patch.settings);
+  if (patch.currentDraw !== undefined) {
+    if (patch.currentDraw) saveJSON(keys.currentDraw, patch.currentDraw);
+    else removeKey(keys.currentDraw);
+  }
+  if (patch.history !== undefined) saveJSON(keys.history, patch.history);
+
+  const meta = readRepoMeta(scope);
   (Object.keys(patch) as EntityKey[]).forEach((key) => {
     meta.entities[key] = at;
   });
-  writeRepoMeta(meta);
+  writeRepoMeta(scope, meta);
 }
 
-/** Remove todos os dados do aparelho (mantém o marcador de seed). */
-export function clearLocalData(): void {
-  removeKey(STORAGE_KEYS.players);
-  removeKey(STORAGE_KEYS.settings);
-  removeKey(STORAGE_KEYS.currentDraw);
-  removeKey(STORAGE_KEYS.history);
-  removeKey(REPO_KEYS.meta);
-  removeKey(REPO_KEYS.owner);
-  removeKey(REPO_KEYS.lastSync);
+/** Remove todos os dados do espaço indicado. */
+export function clearScope(scope: string): void {
+  const keys = scopeKeys(scope);
+  removeKey(keys.players);
+  removeKey(keys.settings);
+  removeKey(keys.currentDraw);
+  removeKey(keys.history);
+  removeKey(keys.meta);
 }
 
 export const EMPTY_SNAPSHOT: AppDataSnapshot = {
@@ -271,17 +263,18 @@ export async function fetchCloudSnapshot(
 }
 
 /**
- * Envia os conjuntos indicados para a nuvem. Devolve false quando não há
- * conexão/erro — nesse caso a alteração permanece na fila.
+ * Envia os conjuntos indicados para a nuvem a partir do espaço informado.
+ * Devolve false quando não há conexão/erro — a alteração fica na fila.
  */
 export async function pushEntities(
+  scope: string,
   userId: string,
   snapshot: AppDataSnapshot,
   entities: EntityKey[],
   at = Date.now(),
 ): Promise<boolean> {
   const iso = new Date(at).toISOString();
-  const meta = readRepoMeta();
+  const meta = readRepoMeta(scope);
 
   try {
     if (entities.includes("players")) {
@@ -313,10 +306,7 @@ export async function pushEntities(
       }
     }
 
-    if (
-      entities.includes("settings") ||
-      entities.includes("currentDraw")
-    ) {
+    if (entities.includes("settings") || entities.includes("currentDraw")) {
       const { error } = await supabase.from("app_settings").upsert(
         {
           user_id: userId,
@@ -360,15 +350,15 @@ export async function pushEntities(
       }
     }
 
-    writeRepoMeta(meta);
+    writeRepoMeta(scope, meta);
     setLastSync(at);
 
-    const remaining = readRepoMeta();
+    const remaining = readRepoMeta(scope);
     remaining.queue = remaining.queue.filter(
       (entity) => !entities.includes(entity),
     );
     remaining.queuedAt = remaining.queue.length > 0 ? Date.now() : null;
-    writeRepoMeta(remaining);
+    writeRepoMeta(scope, remaining);
     return true;
   } catch {
     return false;
@@ -377,7 +367,7 @@ export async function pushEntities(
 
 /**
  * Resolve conflitos por `updated_at`: vence o conjunto mais recente.
- * Devolve também o que precisa ser reenviado à nuvem (lado local mais novo).
+ * Usado apenas dentro do espaço da conta (nunca mistura com o aparelho).
  */
 export function chooseNewerSnapshots(
   local: AppDataSnapshot,

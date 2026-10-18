@@ -10,44 +10,53 @@ import {
 } from "@/components/ui/dialog";
 
 /**
- * Pergunta qual cópia manter quando os dois lados já têm dados
- * (aparelho e nuvem) ao entrar no plano com dados na nuvem.
+ * Pergunta se os dados do aparelho devem ir para a conta.
+ * Só aparece quando a conta com nuvem está VAZIA — se a conta já tem dados,
+ * eles são usados sozinhos, sem misturar com o aparelho.
  */
 export function PremiumSyncDialog() {
-  const { premiumChoiceOpen, resolvePremiumChoice } = useApp();
+  const { deviceUpload, acceptDeviceUpload, declineDeviceUpload } = useApp();
+  const open = deviceUpload !== null;
+  const count = deviceUpload?.players ?? 0;
+
+  const title =
+    count === 1
+      ? "Levar o jogador deste aparelho para a sua conta?"
+      : `Levar os ${count} jogadores deste aparelho para a sua conta?`;
 
   return (
-    <Dialog open={premiumChoiceOpen} onOpenChange={() => {}}>
+    <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent
         className="max-w-lg"
         onInteractOutside={(event) => event.preventDefault()}
         onEscapeKeyDown={(event) => event.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Dados encontrados nos dois lugares</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Sua conta já tem dados na nuvem e este aparelho também tem dados
-            salvos. Qual cópia você quer manter? A outra será substituída.
+            Sua conta ainda não tem dados na nuvem. Você pode enviar o cadastro
+            deste aparelho (jogadores, configurações, sorteio atual e histórico)
+            para a conta, ou começar a conta vazia.
           </DialogDescription>
         </DialogHeader>
+
+        <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+          Nada é apagado do aparelho em nenhuma das opções: ao sair da conta,
+          você volta a ver os dados como estavam.
+        </p>
 
         <div className="grid gap-2">
           <Button
             onClick={() => {
-              void resolvePremiumChoice("cloud");
+              void acceptDeviceUpload();
             }}
           >
             <Cloud className="h-4 w-4" />
-            Usar dados da nuvem
+            Levar para a conta
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              void resolvePremiumChoice("device");
-            }}
-          >
+          <Button variant="outline" onClick={declineDeviceUpload}>
             <HardDrive className="h-4 w-4" />
-            Manter dados do aparelho
+            Começar a conta vazia
           </Button>
         </div>
       </DialogContent>
