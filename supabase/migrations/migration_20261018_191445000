@@ -1,0 +1,33 @@
+-- Teste grátis: soma 1 em trial_days_used apenas uma vez por dia.
+create or replace function public.register_trial_draw()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+  today date := (now() at time zone 'America/Sao_Paulo')::date;
+  rec public.profiles;
+begin
+  if uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  select * into rec from public.profiles where id = uid for update;
+  if rec.id is null then
+    return;
+  end if;
+
+  if rec.trial_days_used < 3
+     and (rec.trial_last_day is null or rec.trial_last_day <> today) then
+    update public.profiles
+       set trial_days_used = rec.trial_days_used + 1,
+           trial_last_day = today
+     where id = uid;
+  end if;
+end;
+$$;
+
+revoke all on function public.register_trial_draw() from public;
+grant execute on function public.register_trial_draw() to authenticated;

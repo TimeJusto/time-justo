@@ -7,6 +7,7 @@ import Configuracoes from "@/pages/Configuracoes";
 import Historico from "@/pages/Historico";
 import Privacidade from "@/pages/Privacidade";
 import Sobre from "@/pages/Sobre";
+import Premium from "@/pages/Premium";
 import Entrar from "@/pages/Entrar";
 import CriarConta from "@/pages/CriarConta";
 import EsqueciSenha from "@/pages/EsqueciSenha";
@@ -36,6 +37,7 @@ export const routers = [
       { path: "redefinir-senha", name: "redefinir-senha", element: <RedefinirSenha /> },
       { path: "privacidade", name: "privacidade", element: <Privacidade /> },
       { path: "sobre", name: "sobre", element: <Sobre /> },
+      { path: "premium", name: "premium", element: <Premium /> },
       { path: "excluir-conta", name: "excluir-conta", element: <ExcluirConta /> },
     ],
   },

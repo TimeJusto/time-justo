@@ -56,6 +56,13 @@ export default defineConfig(({ mode }) => {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest,json,woff,woff2}'],
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,
+        // Nunca cachear/interceptar o backend (login, banco, funções, storage).
+        runtimeCaching: [
+          {
+            urlPattern: /\/(auth|rest|functions|storage)\/v1\//,
+            handler: 'NetworkOnly',
+          },
+        ],
       },
     }),
   ];

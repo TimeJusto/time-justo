@@ -21,8 +21,15 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export function AccountPanel() {
   const navigate = useNavigate();
-  const { user, profile, isCloud, loading, signOut } = useAuth();
-  const { lastSyncAt, syncStatus } = useApp();
+  const {
+    user,
+    profile,
+    isCloud,
+    premiumSource,
+    loading,
+    signOut,
+  } = useAuth();
+  const { lastSyncAt, syncStatus, trialLeft } = useApp();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -30,20 +37,19 @@ export function AccountPanel() {
     ? new Date(profile.premiumUntil)
     : null;
 
-  const planLine = !user
-    ? "Seu plano: Grátis (dados neste aparelho)"
-    : isCloud
-      ? profile?.role === "admin"
-        ? "Plano Administrador (dados na nuvem)"
-        : premiumUntil
-          ? `Premium até ${formatDateBR(premiumUntil)} (dados na nuvem)`
-          : "Premium (dados na nuvem)"
-      : "Seu plano: Grátis (dados neste aparelho)";
+  const planLine =
+    premiumSource === "admin"
+      ? "Plano Administrador (dados na nuvem)"
+      : premiumSource === "premium" && premiumUntil
+        ? `Premium até ${formatDateBR(premiumUntil)} (dados na nuvem)`
+        : premiumSource === "trial"
+          ? `Teste Premium: faltam ${trialLeft} ${
+              trialLeft === 1 ? "partida" : "partidas"
+            }`
+          : "Seu plano: Grátis (dados neste aparelho)";
 
   const trialLine =
-    profile && profile.plan === "free" && profile.trialDaysUsed > 0
-      ? `Teste Premium: ${Math.min(profile.trialDaysUsed, 3)} de 3 partidas usadas`
-      : null;
+    premiumSource === "trial" ? "Dados neste aparelho durante o teste." : null;
 
   const lastSyncText = lastSyncAt
     ? new Date(lastSyncAt).toLocaleTimeString("pt-BR", {
@@ -162,8 +168,8 @@ export function AccountPanel() {
 
           {!user ? (
             <p className="mt-2 text-xs text-muted-foreground">
-              Você pode usar o app sem conta. O plano Premium guarda os dados na
-              nuvem.
+              Crie uma conta e ganhe 3 partidas Premium grátis. Sem conta, o app
+              continua funcionando com os dados neste aparelho.
             </p>
           ) : null}
         </>

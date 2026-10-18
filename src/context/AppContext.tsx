@@ -25,6 +25,7 @@ import {
   INITIAL_SETTINGS,
 } from "@/data/initialData";
 import { isSeeded, markSeeded } from "@/services/storage";
+import { supabase } from "@/integrations/supabase/client";
 import {
   isDuplicateName,
   validateAndNormalizeRoster,
@@ -50,10 +51,25 @@ import {
   type CloudSnapshot,
   type EntityKey,
 } from "@/services/repository";
+import {
+  checkDrawAllowance,
+  localDayKey,
+  readDrawUsage,
+  recordDrawUsage,
+} from "@/services/drawUsage";
 import { performDraw } from "@/algorithm/drawAlgorithm";
 import { normalizeName, sortPlayers } from "@/lib/normalize";
 import { formatDateBR } from "@/lib/format";
 import { getLabels, type GameLabels } from "@/lib/labels";
+import {
+  applyPlanLimits,
+  getPlanLimits,
+  trialMatchesLeft,
+  type PlanLimits,
+  type PremiumNoticeKind,
+  type PremiumSource,
+} from "@/lib/planLimits";
+import { NETWORK_ERROR_MESSAGE } from "@/lib/networkMessages";
 import { useAuth } from "./AuthContext";
 
 export interface PlayerInput {
@@ -66,6 +82,12 @@ export interface PlayerInput {
 interface AppContextValue {
   players: Player[];
   settings: Settings;
+  /** Configurações já limitadas pelo plano em uso. */
+  effectiveSettings: Settings;
+  limits: PlanLimits;
+  isPremium: boolean;
+  premiumSource: PremiumSource;
+  trialLeft: number;
   currentDraw: CurrentDraw | null;
   history: Draw[];
   /** Rótulos exibidos conforme o termo escolhido para o jogo. */
@@ -89,7 +111,13 @@ interface AppContextValue {
   premiumChoiceOpen: boolean;
   resolvePremiumChoice(choice: "device" | "cloud"): Promise<void>;
   refreshAccount(): Promise<void>;
+  premiumNotice: PremiumNoticeKind | null;
+  showPremiumNotice(kind: PremiumNoticeKind): void;
+  dismissPremiumNotice(): void;
 }
+
+/** Estrelas aceitas pelo cadastro (o plano limita a entrada, não os dados antigos). */
+const MAX_STARS_ABSOLUTE = 10;
 
 /** Na primeira execução, popula o armazenamento com os dados iniciais. */
 function seedIfNeeded(): void {
@@ -116,6 +144,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const {
     user,
     isCloud,
+    isPremium,
+    premiumSource,
+    profile,
     loading: authLoading,
     refreshProfile,
   } = useAuth();
@@ -143,17 +174,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
     getLastSync(),
   );
   const [premiumChoiceOpen, setPremiumChoiceOpen] = useState(false);
+  const [premiumNotice, setPremiumNotice] = useState<PremiumNoticeKind | null>(
+    null,
+  );
 
   const pendingCloudRef = useRef<CloudSnapshot | null>(null);
   const transitionRef = useRef<{ userId: string | null; cloud: boolean }>({
     userId: null,
     cloud: false,
   });
+  const pullSignatureRef = useRef<string>("");
+  const lastNetworkToastRef = useRef<number>(0);
+  const trialDrawRef = useRef<number>(0);
+
+  const limits = useMemo<PlanLimits>(
+    () => getPlanLimits(isPremium),
+    [isPremium],
+  );
+  const effectiveSettings = useMemo<Settings>(
+    () => applyPlanLimits(settings, limits),
+    [settings, limits],
+  );
+  const trialLeft = trialMatchesLeft(profile);
 
   const labels = useMemo<GameLabels>(
     () => getLabels(settings.gameTerm),
     [settings.gameTerm],
   );
+
+  const showNetworkToast = useCallback(() => {
+    const now = Date.now();
+    if (now - lastNetworkToastRef.current < 15000) return;
+    lastNetworkToastRef.current = now;
+    toast.error(NETWORK_ERROR_MESSAGE);
+  }, []);
+
+  const showPremiumNotice = useCallback((kind: PremiumNoticeKind) => {
+    setPremiumNotice(kind);
+  }, []);
+
+  const dismissPremiumNotice = useCallback(() => {
+    setPremiumNotice(null);
+  }, []);
 
   const applySnapshot = useCallback((snapshot: AppDataSnapshot) => {
     setPlayers(snapshot.players);
@@ -184,10 +246,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } else {
           markQueued(entities);
           setSyncStatus(navigator.onLine ? "error" : "pending");
+          if (navigator.onLine) showNetworkToast();
         }
       });
     },
-    [isCloud, userId],
+    [isCloud, userId, showNetworkToast],
   );
 
   const commit = useCallback(
@@ -205,6 +268,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (input: PlayerInput): string | null => {
       const name = normalizeName(input.name);
       if (!name) return "Informe o nome do jogador.";
+      if (limits.maxPlayers !== null && players.length >= limits.maxPlayers) {
+        return `O plano Grátis permite até ${limits.maxPlayers} jogadores.`;
+      }
       if (isDuplicateName(players, name)) {
         return `Nome duplicado no Cadastro: ${name}.`;
       }
@@ -212,16 +278,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id: crypto.randomUUID(),
         name,
         position: input.position,
-        stars: clampStars(input.stars, settings.starScale),
+        stars: clampStars(input.stars, effectiveSettings.starScale),
         confirmed: input.confirmed,
       };
-      commit(
-        { players: sortPlayers([...players, player]) },
-        ["players"],
-      );
+      commit({ players: sortPlayers([...players, player]) }, ["players"]);
       return null;
     },
-    [players, settings.starScale, commit],
+    [players, limits.maxPlayers, effectiveSettings.starScale, commit],
   );
 
   const updatePlayer = useCallback(
@@ -234,24 +297,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       commit(
         {
           players: sortPlayers(
-            players.map((player) =>
-              player.id === id
-                ? {
-                    ...player,
-                    name,
-                    position: input.position,
-                    stars: clampStars(input.stars, settings.starScale),
-                    confirmed: input.confirmed,
-                  }
-                : player,
-            ),
+            players.map((player) => {
+              if (player.id !== id) return player;
+              // Notas acima da escala do plano atual permanecem como estão.
+              const stars =
+                player.stars > effectiveSettings.starScale
+                  ? Math.min(input.stars, player.stars)
+                  : clampStars(input.stars, effectiveSettings.starScale);
+              return {
+                ...player,
+                name,
+                position: input.position,
+                stars,
+                confirmed: input.confirmed,
+              };
+            }),
           ),
         },
         ["players"],
       );
       return null;
     },
-    [players, settings.starScale, commit],
+    [players, effectiveSettings.starScale, commit],
   );
 
   const deletePlayer = useCallback(
@@ -285,15 +352,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     success: boolean;
     messages: string[];
   } => {
+    // Validação usa o limite absoluto (10) para não invalidar notas antigas.
     const { errors, players: normalized } = validateAndNormalizeRoster(
       players,
-      settings.starScale,
+      MAX_STARS_ABSOLUTE,
     );
     if (errors.length > 0) {
       return { success: false, messages: errors };
     }
     commit({ players: normalized }, ["players"]);
-    const meta = settings.numberOfTeams * settings.playersPerTeam;
+    const meta =
+      effectiveSettings.numberOfTeams * effectiveSettings.playersPerTeam;
     const confirmed = normalized.filter((player) => player.confirmed).length;
     const messages: string[] = ["Lista atualizada e ordenada com sucesso."];
     messages.push(
@@ -302,21 +371,65 @@ export function AppProvider({ children }: { children: ReactNode }) {
         : `${confirmed} confirmados para uma meta de ${meta}.`,
     );
     return { success: true, messages };
-  }, [players, settings, commit]);
+  }, [players, effectiveSettings, commit]);
 
   const saveSettingsCb = useCallback(
     (next: Settings) => {
-      commit({ settings: next }, ["settings"]);
+      const clamped = applyPlanLimits(next, limits);
+      // O logo do grupo não é apagado no Grátis — apenas não é usado.
+      const preserved = limits.allowGroupLogo
+        ? clamped
+        : { ...clamped, groupLogo: settings.groupLogo };
+      commit({ settings: preserved }, ["settings"]);
     },
-    [commit],
+    [commit, limits, settings.groupLogo],
   );
 
+  /** Consome 1 partida do teste grátis (no máximo 1 por dia, no servidor). */
+  const registerTrialDraw = useCallback(async () => {
+    if (!userId || premiumSource !== "trial") return;
+    const now = Date.now();
+    if (now - trialDrawRef.current < 2000) return;
+    trialDrawRef.current = now;
+
+    const { error } = await supabase.rpc("register_trial_draw");
+    if (error) {
+      if (navigator.onLine) toast.error(NETWORK_ERROR_MESSAGE);
+      return;
+    }
+    await refreshProfile();
+  }, [userId, premiumSource, refreshProfile]);
+
   const runDraw = useCallback((): DrawResult => {
+    // Limite de dias/sorteios do plano Grátis.
+    if (
+      limits.maxDrawDaysPerMonth !== null &&
+      limits.maxDrawsPerDay !== null
+    ) {
+      const allowance = checkDrawAllowance(
+        readDrawUsage(),
+        localDayKey(),
+        limits.maxDrawDaysPerMonth,
+        limits.maxDrawsPerDay,
+      );
+      if (!allowance.allowed) {
+        setPremiumNotice(
+          allowance.reason === "dayLimit" ? "drawsPerDay" : "drawDays",
+        );
+        return {
+          valid: false,
+          teams: [],
+          repetitionScore: 0,
+          attempts: 0,
+        };
+      }
+    }
+
     const confirmed = players.filter((player) => player.confirmed);
-    const windowSize = Math.max(0, Math.round(settings.historyWindow));
-    const lastDraws =
-      windowSize === 0 ? [] : history.slice(-windowSize);
-    const result = performDraw(confirmed, settings, lastDraws);
+    const windowSize = Math.max(0, Math.round(effectiveSettings.historyWindow));
+    const lastDraws = windowSize === 0 ? [] : history.slice(-windowSize);
+    const result = performDraw(confirmed, effectiveSettings, lastDraws);
+
     if (result.valid) {
       commit(
         {
@@ -331,32 +444,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
         },
         ["currentDraw"],
       );
+
+      if (limits.maxDrawDaysPerMonth !== null) {
+        recordDrawUsage(readDrawUsage(), localDayKey());
+      }
+      if (premiumSource === "trial") {
+        void registerTrialDraw();
+      }
     }
+
     return result;
-  }, [players, settings, history, commit]);
+  }, [
+    players,
+    history,
+    effectiveSettings,
+    limits,
+    premiumSource,
+    commit,
+    registerTrialDraw,
+  ]);
 
   const saveBaba = useCallback((): Draw | null => {
     if (!currentDraw || currentDraw.teams.length === 0) return null;
 
-    const historyWithNext = [...history];
     const nextNumber =
-      historyWithNext.reduce((max, draw) => Math.max(max, draw.babaNumber), 0) + 1;
+      history.reduce((max, draw) => Math.max(max, draw.babaNumber), 0) + 1;
     const now = new Date();
     const saved: Draw = {
       id: currentDraw.id === "initial-draw" ? crypto.randomUUID() : currentDraw.id,
       babaNumber: nextNumber,
       date: formatDateBR(now),
-      historyWindow: settings.historyWindow,
+      historyWindow: effectiveSettings.historyWindow,
       teams: currentDraw.teams,
       repetitionScore: currentDraw.repetitionScore,
       attempts: currentDraw.attempts,
       createdAt: now.toISOString(),
     };
 
-    const nextHistory = [...historyWithNext, saved];
     commit(
       {
-        history: nextHistory,
+        history: [...history, saved],
         currentDraw: {
           ...currentDraw,
           id: saved.id,
@@ -367,7 +494,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ["history", "currentDraw"],
     );
     return saved;
-  }, [currentDraw, history, settings.historyWindow, commit]);
+  }, [currentDraw, history, effectiveSettings.historyWindow, commit]);
 
   const removeBaba = useCallback(
     (id: string) => {
@@ -395,10 +522,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [players, history, commit]);
 
-  /**
-   * "Apagar todos os dados": remove do aparelho e, no Premium, também da nuvem
-   * (marcadores de exclusão + estado vazio enviado ao servidor).
-   */
   const clearAll = useCallback(() => {
     players.forEach((player) => markTombstone("players", player.id));
     history.forEach((draw) => markTombstone("matches", draw.id));
@@ -417,6 +540,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!cloud) {
         markQueued(ALL_ENTITIES);
         setSyncStatus(navigator.onLine ? "error" : "pending");
+        if (navigator.onLine) showNetworkToast();
         return;
       }
 
@@ -424,7 +548,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const localHas = hasLocalData(local);
       const owner = getLocalOwner();
 
-      // Nuvem vazia: envia os dados do aparelho.
       if (cloud.empty) {
         let ok = true;
         if (localHas) {
@@ -438,7 +561,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Aparelho vazio: baixa a nuvem.
       if (!localHas) {
         applySnapshot(cloud.snapshot);
         writeLocal(cloud.snapshot, 0);
@@ -450,7 +572,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Mesma conta já sincronizada: resolve por updated_at.
       if (owner === uid) {
         const localUpdatedAt = getLocalUpdatedAt();
         const merged = chooseNewerSnapshots(local, localUpdatedAt, cloud);
@@ -482,12 +603,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Dados nos dois lados de uma conta diferente: perguntar qual manter.
       pendingCloudRef.current = cloud;
       setPremiumChoiceOpen(true);
       setSyncStatus("idle");
     },
-    [applySnapshot],
+    [applySnapshot, showNetworkToast],
   );
 
   const leaveCloud = useCallback(
@@ -504,6 +624,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [applySnapshot],
   );
 
+  /** Busca a nuvem e aplica apenas o que for mais novo (usado no foco/realtime). */
+  const pullCloud = useCallback(async () => {
+    if (!userId || !isCloud) return;
+    const cloud = await fetchCloudSnapshot(userId);
+    if (!cloud || cloud.empty) return;
+
+    const local = readLocalSnapshot();
+    const localUpdatedAt = getLocalUpdatedAt();
+    const merged = chooseNewerSnapshots(local, localUpdatedAt, cloud);
+
+    const signature = JSON.stringify(merged.snapshot);
+    if (signature === pullSignatureRef.current) return;
+    pullSignatureRef.current = signature;
+
+    applySnapshot(merged.snapshot);
+    writeLocal(merged.snapshot, 0);
+    setLocalUpdatedAt({
+      players: Math.max(localUpdatedAt.players, cloud.updatedAt.players),
+      settings: Math.max(localUpdatedAt.settings, cloud.updatedAt.settings),
+      currentDraw: Math.max(
+        localUpdatedAt.currentDraw,
+        cloud.updatedAt.currentDraw,
+      ),
+      history: Math.max(localUpdatedAt.history, cloud.updatedAt.history),
+    });
+    setLastSyncAtState(getLastSync());
+
+    if (merged.push.length > 0) {
+      const ok = await pushEntities(
+        userId,
+        merged.snapshot,
+        merged.push,
+        Date.now(),
+      );
+      if (!ok) markQueued(merged.push);
+    }
+  }, [userId, isCloud, applySnapshot]);
+
   useEffect(() => {
     if (authLoading) return;
 
@@ -511,7 +669,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     transitionRef.current = { userId, cloud: isCloud };
 
     if (!userId) {
-      // Saiu da conta: no Premium, limpa a cópia local dela.
       if (previous.userId && previous.cloud) {
         clearLocalData();
         applySnapshot(EMPTY_SNAPSHOT);
@@ -531,6 +688,70 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [authLoading, userId, isCloud, enterCloud, leaveCloud, applySnapshot]);
 
+  // Nuvem ao abrir/voltar ao app + tempo real das próprias linhas.
+  useEffect(() => {
+    if (!isCloud || !userId) return;
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void pullCloud();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    void pullCloud();
+
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [isCloud, userId, pullCloud]);
+
+  useEffect(() => {
+    if (!isCloud || !userId) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        void pullCloud();
+      }, 400);
+    };
+
+    const channel = supabase
+      .channel(`timejusto-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "players",
+          filter: `user_id=eq.${userId}`,
+        },
+        schedule,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "app_settings",
+          filter: `user_id=eq.${userId}`,
+        },
+        schedule,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "matches",
+          filter: `user_id=eq.${userId}`,
+        },
+        schedule,
+      )
+      .subscribe();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(channel);
+    };
+  }, [isCloud, userId, pullCloud]);
+
   useEffect(() => {
     const handleOnline = () => setOnline(true);
     const handleOffline = () => setOnline(false);
@@ -542,7 +763,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Ao voltar a internet, envia o que ficou na fila.
   useEffect(() => {
     if (!online || !isCloud || !userId) return;
     const queued = getQueue();
@@ -557,10 +777,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           toast.success("Alterações sincronizadas.");
         } else {
           setSyncStatus("error");
+          showNetworkToast();
         }
       },
     );
-  }, [online, isCloud, userId]);
+  }, [online, isCloud, userId, showNetworkToast]);
 
   const resolvePremiumChoice = useCallback(
     async (choice: "device" | "cloud") => {
@@ -607,6 +828,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => ({
       players,
       settings,
+      effectiveSettings,
+      limits,
+      isPremium,
+      premiumSource,
+      trialLeft,
       currentDraw,
       history,
       labels,
@@ -628,10 +854,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       premiumChoiceOpen,
       resolvePremiumChoice,
       refreshAccount,
+      premiumNotice,
+      showPremiumNotice,
+      dismissPremiumNotice,
     }),
     [
       players,
       settings,
+      effectiveSettings,
+      limits,
+      isPremium,
+      premiumSource,
+      trialLeft,
       currentDraw,
       history,
       labels,
@@ -653,6 +887,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       premiumChoiceOpen,
       resolvePremiumChoice,
       refreshAccount,
+      premiumNotice,
+      showPremiumNotice,
+      dismissPremiumNotice,
     ],
   );
 

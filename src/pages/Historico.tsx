@@ -22,7 +22,14 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 }
 
 export default function Historico() {
-  const { history, settings, labels, removeBaba } = useApp();
+  const {
+    history,
+    effectiveSettings,
+    labels,
+    limits,
+    showPremiumNotice,
+    removeBaba,
+  } = useApp();
   const [numberFilter, setNumberFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -30,8 +37,18 @@ export default function Historico() {
 
   const lastDraw = history[history.length - 1];
 
+  // No plano Grátis só as últimas partidas aparecem (as demais ficam guardadas).
+  const visibleHistory = useMemo(
+    () =>
+      limits.visibleHistory === null
+        ? history
+        : history.slice(-limits.visibleHistory),
+    [history, limits.visibleHistory],
+  );
+  const hiddenCount = history.length - visibleHistory.length;
+
   const filtered = useMemo(() => {
-    const filteredHistory = history.filter((d) => {
+    const filteredHistory = visibleHistory.filter((d) => {
       if (numberFilter.trim() && String(d.babaNumber) !== numberFilter.trim()) {
         return false;
       }
@@ -41,7 +58,7 @@ export default function Historico() {
       return true;
     });
     return [...filteredHistory].reverse(); // mais recente primeiro
-  }, [history, numberFilter, dateFilter]);
+  }, [visibleHistory, numberFilter, dateFilter]);
 
   const handleDelete = () => {
     if (!deleting) return;
@@ -64,10 +81,31 @@ export default function Historico() {
         <StatCard
           label="Janela usada"
           value={labels.windowCount(
-            lastDraw ? lastDraw.historyWindow : settings.historyWindow,
+            lastDraw
+              ? lastDraw.historyWindow
+              : effectiveSettings.historyWindow,
           )}
         />
       </div>
+
+      {hiddenCount > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-4 text-sm">
+          <span className="text-muted-foreground">
+            No plano Grátis você vê as {limits.visibleHistory} últimas partidas.{" "}
+            {hiddenCount === 1
+              ? "1 partida continua guardada"
+              : `${hiddenCount} partidas continuam guardadas`}
+            .
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => showPremiumNotice("history")}
+          >
+            Ver Premium
+          </Button>
+        </div>
+      ) : null}
 
       {history.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-card p-10 text-center text-muted-foreground">

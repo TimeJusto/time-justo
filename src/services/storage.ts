@@ -14,6 +14,7 @@ export const REPO_KEYS = {
   lastSync: `${PREFIX}last-sync`,
   meta: `${PREFIX}repo-meta`,
   profileCache: `${PREFIX}profile-cache`,
+  drawUsage: `${PREFIX}draw-usage`,
 } as const;
 
 export function loadJSON<T>(key: string, fallback: T): T {

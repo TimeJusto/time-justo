@@ -42,8 +42,8 @@ export function PlayerDialog({
   initial,
   onSave,
 }: PlayerDialogProps) {
-  const { settings } = useApp();
-  const starScale = settings.starScale;
+  const { settings, effectiveSettings } = useApp();
+  const starScale = effectiveSettings.starScale;
   const [name, setName] = useState("");
   const [position, setPosition] = useState<Position>("Meia");
   const [stars, setStars] = useState("3");

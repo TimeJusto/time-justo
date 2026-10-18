@@ -22,7 +22,7 @@ function DiagnosticItem({ label, value }: { label: string; value: string | numbe
 }
 
 export default function Times() {
-  const { currentDraw, settings, labels, runDraw, saveBaba } = useApp();
+  const { currentDraw, effectiveSettings, labels, runDraw, saveBaba } = useApp();
   const [saveOpen, setSaveOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [diagnostics, setDiagnostics] = useState<DrawDiagnostics | null>(null);
@@ -32,12 +32,12 @@ export default function Times() {
       currentDraw
         ? buildValidation(
             currentDraw.teams,
-            settings,
+            effectiveSettings,
             currentDraw.repetitionScore,
             currentDraw.attempts,
           )
         : null,
-    [currentDraw, settings],
+    [currentDraw, effectiveSettings],
   );
 
   // Ordem fixa: Time 1, 2, 3... independente da ordem sorteada.

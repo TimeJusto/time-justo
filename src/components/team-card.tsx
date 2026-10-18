@@ -13,8 +13,8 @@ interface TeamCardProps {
 
 /** Card de um time com cores próprias, logo, jogadores ordenados, total e esquema tático. */
 export function TeamCard({ team, compact = false }: TeamCardProps) {
-  const { settings } = useApp();
-  const cardLogo = settings.groupLogo ?? APP_LOGO;
+  const { settings, effectiveSettings } = useApp();
+  const cardLogo = effectiveSettings.groupLogo ?? APP_LOGO;
   const colors = teamColor(team.teamNumber);
   const players = sortTeamPlayers(team.players);
   const totalStars = players.reduce((sum, p) => sum + p.stars, 0);

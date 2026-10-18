@@ -23,6 +23,7 @@ import {
   GROUP_NAME_MAX_LENGTH,
 } from "@/lib/brand";
 import { fileToResizedDataUrl } from "@/lib/imageUtils";
+import { applyPlanLimits } from "@/lib/planLimits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,15 +39,18 @@ import { AccountPanel } from "@/components/account-panel";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export default function Configuracoes() {
-  const { settings, saveSettings, resetAll, clearAll } = useApp();
-  const [form, setForm] = useState<Settings>(settings);
+  const { settings, saveSettings, resetAll, clearAll, limits, isPremium } =
+    useApp();
+  const [form, setForm] = useState<Settings>(() =>
+    applyPlanLimits(settings, limits),
+  );
   const [resetOpen, setResetOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setForm(settings);
-  }, [settings]);
+    setForm(applyPlanLimits(settings, limits));
+  }, [settings, limits]);
 
   const formLabels = getLabels(
     isGameTerm(form.gameTerm) ? form.gameTerm : DEFAULT_GAME_TERM,
@@ -189,7 +193,11 @@ export default function Configuracoes() {
                 <Label>Logo do grupo (opcional)</Label>
                 <div className="flex flex-wrap items-center gap-3">
                   <Logo
-                    src={form.groupLogo ?? APP_LOGO}
+                    src={
+                      limits.allowGroupLogo
+                        ? (form.groupLogo ?? APP_LOGO)
+                        : APP_LOGO
+                    }
                     size={56}
                     alt="Prévia do logo do grupo"
                   />
@@ -206,12 +214,13 @@ export default function Configuracoes() {
                   <Button
                     type="button"
                     variant="outline"
+                    disabled={!limits.allowGroupLogo}
                     onClick={() => logoInputRef.current?.click()}
                   >
                     <ImagePlus className="h-4 w-4" />
                     Escolher imagem
                   </Button>
-                  {form.groupLogo ? (
+                  {form.groupLogo && limits.allowGroupLogo ? (
                     <Button
                       type="button"
                       variant="ghost"
@@ -226,8 +235,17 @@ export default function Configuracoes() {
                   ) : null}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Sem logo do grupo, os cards e o cabeçalho usam o logo do
-                  aplicativo.
+                  {limits.allowGroupLogo
+                    ? "Sem logo do grupo, os cards e o cabeçalho usam o logo do aplicativo."
+                    : "No plano Grátis usamos o logo do Time Justo. Seu logo fica guardado para quando voltar ao Premium."}{" "}
+                  {!limits.allowGroupLogo ? (
+                    <Link
+                      className="font-medium text-primary underline underline-offset-4"
+                      to="/premium"
+                    >
+                      Ver Premium
+                    </Link>
+                  ) : null}
                 </p>
               </div>
             </div>
@@ -243,6 +261,20 @@ export default function Configuracoes() {
               {form.playersPerTeam}{" "}
               {form.playersPerTeam === 1 ? "jogador" : "jogadores"} por time)
             </p>
+            {!isPremium ? (
+              <p className="mb-4 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                Plano Grátis: até {limits.maxTeams} times,{" "}
+                {limits.maxPlayersPerTeam} por time, janela do histórico{" "}
+                {limits.lockedHistoryWindow}, ajustes no padrão e escala 1–
+                {limits.starScales[0]}.{" "}
+                <Link
+                  className="font-medium text-primary underline underline-offset-4"
+                  to="/premium"
+                >
+                  Ver Premium
+                </Link>
+              </p>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="num-teams">Quantidade de times</Label>
@@ -250,11 +282,14 @@ export default function Configuracoes() {
                   id="num-teams"
                   type="number"
                   min={2}
+                  max={limits.maxTeams ?? undefined}
                   value={form.numberOfTeams}
                   onChange={(e) => setNumber("numberOfTeams", e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Mínimo de 2 times, sem limite máximo.
+                  {limits.maxTeams !== null
+                    ? `Plano Grátis: até ${limits.maxTeams} times.`
+                    : "Mínimo de 2 times, sem limite máximo."}
                 </p>
               </div>
 
@@ -264,11 +299,14 @@ export default function Configuracoes() {
                   id="per-team"
                   type="number"
                   min={1}
+                  max={limits.maxPlayersPerTeam ?? undefined}
                   value={form.playersPerTeam}
                   onChange={(e) => setNumber("playersPerTeam", e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Mínimo de 1 jogador por time.
+                  {limits.maxPlayersPerTeam !== null
+                    ? `Plano Grátis: até ${limits.maxPlayersPerTeam} jogadores por time.`
+                    : "Mínimo de 1 jogador por time."}
                 </p>
               </div>
 
@@ -289,7 +327,9 @@ export default function Configuracoes() {
                     <SelectValue placeholder="Escala" />
                   </SelectTrigger>
                   <SelectContent>
-                    {STAR_SCALES.map((scale) => (
+                    {STAR_SCALES.filter((scale) =>
+                      limits.starScales.includes(scale),
+                    ).map((scale) => (
                       <SelectItem key={scale} value={String(scale)}>
                         Notas de 1 a {scale}
                       </SelectItem>
@@ -297,7 +337,9 @@ export default function Configuracoes() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  As notas já cadastradas não são convertidas ao trocar a escala.
+                  {limits.starScales.length === 1
+                    ? "No plano Grátis a escala é 1–5."
+                    : "As notas já cadastradas não são convertidas ao trocar a escala."}
                 </p>
               </div>
 
@@ -307,11 +349,14 @@ export default function Configuracoes() {
                   id="window"
                   type="number"
                   min={0}
+                  disabled={limits.lockedHistoryWindow !== null}
                   value={form.historyWindow}
                   onChange={(e) => setNumber("historyWindow", e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {formLabels.windowHint} Use 0 para ignorar sorteios anteriores.
+                  {limits.lockedHistoryWindow !== null
+                    ? `No plano Grátis a janela é fixa em ${limits.lockedHistoryWindow} partida (a última).`
+                    : `${formLabels.windowHint} Use 0 para ignorar sorteios anteriores.`}
                 </p>
               </div>
 
@@ -321,13 +366,16 @@ export default function Configuracoes() {
                   id="star-diff"
                   type="number"
                   min={0}
+                  disabled={limits.maxStarDifference !== null}
                   value={form.maxStarDifference}
                   onChange={(e) =>
                     setNumber("maxStarDifference", e.target.value)
                   }
                 />
                 <p className="text-xs text-muted-foreground">
-                  Diferença entre o maior e o menor total de estrelas dos times.
+                  {limits.maxStarDifference !== null
+                    ? `No plano Grátis fica em ${limits.maxStarDifference}.`
+                    : "Diferença entre o maior e o menor total de estrelas dos times."}
                 </p>
               </div>
 
@@ -337,13 +385,16 @@ export default function Configuracoes() {
                   id="pos-diff"
                   type="number"
                   min={0}
+                  disabled={limits.maxPositionDifference !== null}
                   value={form.maxPositionDifference}
                   onChange={(e) =>
                     setNumber("maxPositionDifference", e.target.value)
                   }
                 />
                 <p className="text-xs text-muted-foreground">
-                  Diferença da quantidade de cada posição entre os times.
+                  {limits.maxPositionDifference !== null
+                    ? `No plano Grátis fica em ${limits.maxPositionDifference}.`
+                    : "Diferença da quantidade de cada posição entre os times."}
                 </p>
               </div>
 
@@ -353,11 +404,14 @@ export default function Configuracoes() {
                   id="attempts"
                   type="number"
                   min={1}
+                  disabled={limits.maxAttempts !== null}
                   value={form.maxAttempts}
                   onChange={(e) => setNumber("maxAttempts", e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Número exato de tentativas, sem mínimo oculto.
+                  {limits.maxAttempts !== null
+                    ? `No plano Grátis fica em ${limits.maxAttempts} tentativas.`
+                    : "Número exato de tentativas, sem mínimo oculto."}
                 </p>
               </div>
             </div>

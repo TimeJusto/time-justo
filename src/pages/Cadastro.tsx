@@ -54,12 +54,15 @@ export default function Cadastro() {
   const {
     players,
     settings,
+    effectiveSettings,
+    limits,
     labels,
     addPlayer,
     updatePlayer,
     deletePlayer,
     toggleConfirmed,
     updateList,
+    showPremiumNotice,
   } = useApp();
 
   const [search, setSearch] = useState("");
@@ -87,7 +90,8 @@ export default function Cadastro() {
   }, [players, search, positionFilter, confirmFilter]);
 
   const confirmed = players.filter((p) => p.confirmed);
-  const meta = settings.numberOfTeams * settings.playersPerTeam;
+  const meta =
+    effectiveSettings.numberOfTeams * effectiveSettings.playersPerTeam;
   const missing = Math.max(0, meta - confirmed.length);
   const countByPosition = (pos: Position) =>
     confirmed.filter((p) => p.position === pos).length;
@@ -127,6 +131,13 @@ export default function Cadastro() {
         <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => {
+              if (
+                limits.maxPlayers !== null &&
+                players.length >= limits.maxPlayers
+              ) {
+                showPremiumNotice("players");
+                return;
+              }
               setEditing(null);
               setDialogOpen(true);
             }}
@@ -312,14 +323,20 @@ export default function Cadastro() {
               <SummaryRow label="Meias" value={countByPosition("Meia")} />
               <SummaryRow label="Atacantes" value={countByPosition("Atacante")} />
             </div>
+            {limits.maxPlayers !== null ? (
+              <p className="mt-2 border-t border-border pt-2 text-xs text-muted-foreground">
+                Plano Grátis: até {limits.maxPlayers} jogadores. Quem passar
+                disso continua salvo.
+              </p>
+            ) : null}
           </div>
 
           <div className="rounded-xl border bg-card p-4">
             <h3 className="mb-2 text-sm font-bold uppercase tracking-wide">
-              Notas dos confirmados (1 a {settings.starScale})
+              Notas dos confirmados (1 a {effectiveSettings.starScale})
             </h3>
             <div className="divide-y divide-border">
-              {starOptions(settings.starScale).map((n) => (
+              {starOptions(effectiveSettings.starScale).map((n) => (
                 <SummaryRow
                   key={n}
                   label={formatStars(n)}

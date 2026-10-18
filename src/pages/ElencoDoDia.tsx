@@ -38,13 +38,14 @@ function SummaryCard({
 }
 
 export default function ElencoDoDia() {
-  const { players, settings } = useApp();
+  const { players, effectiveSettings } = useApp();
 
   const confirmed = useMemo(
     () => sortPlayers(players.filter((p) => p.confirmed)),
     [players],
   );
-  const meta = settings.numberOfTeams * settings.playersPerTeam;
+  const meta =
+    effectiveSettings.numberOfTeams * effectiveSettings.playersPerTeam;
   const totalStars = confirmed.reduce((sum, p) => sum + p.stars, 0);
 
   const countByPosition = (pos: string) =>
@@ -85,8 +86,8 @@ export default function ElencoDoDia() {
           {situacao.label}
         </span>
         <span className="text-sm text-muted-foreground">
-          Meta: {meta} jogadores ({settings.numberOfTeams} times ×{" "}
-          {settings.playersPerTeam} por time)
+          Meta: {meta} jogadores ({effectiveSettings.numberOfTeams} times ×{" "}
+          {effectiveSettings.playersPerTeam} por time)
         </span>
       </div>
 

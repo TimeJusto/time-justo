@@ -10,6 +10,10 @@ import {
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { REPO_KEYS, loadJSON, saveJSON, removeKey } from "@/services/storage";
+import {
+  getPremiumSource,
+  type PremiumSource,
+} from "@/lib/planLimits";
 import type { Profile } from "@/types";
 
 interface CachedProfile {
@@ -25,6 +29,9 @@ interface AuthContextValue {
   profile: Profile | null;
   /** isCloudUser decidido pelo servidor (admin ou Premium ativo). */
   isCloud: boolean;
+  /** Recursos Premium (inclui o teste grátis ativo). */
+  isPremium: boolean;
+  premiumSource: PremiumSource;
   loading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -152,17 +159,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) await loadProfile(user.id);
   }, [user, loadProfile]);
 
+  const premiumSource = useMemo<PremiumSource>(
+    () => getPremiumSource(profile),
+    [profile],
+  );
+  const isPremium = premiumSource !== "free";
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       session,
       profile,
       isCloud,
+      isPremium,
+      premiumSource,
       loading,
       signOut,
       refreshProfile,
     }),
-    [user, session, profile, isCloud, loading, signOut, refreshProfile],
+    [
+      user,
+      session,
+      profile,
+      isCloud,
+      isPremium,
+      premiumSource,
+      loading,
+      signOut,
+      refreshProfile,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

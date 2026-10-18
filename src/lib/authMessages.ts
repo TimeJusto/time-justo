@@ -1,5 +1,9 @@
+import { isNetworkErrorMessage, NETWORK_ERROR_MESSAGE } from "@/lib/networkMessages";
+
 /** Traduz mensagens comuns de autenticação para português. */
 export function authErrorMessage(message: string): string {
+  if (isNetworkErrorMessage(message)) return NETWORK_ERROR_MESSAGE;
+
   const normalized = message.toLowerCase();
 
   if (normalized.includes("invalid login credentials")) {

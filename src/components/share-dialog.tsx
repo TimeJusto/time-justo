@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Download, Loader2, MessageCircle, Share2 } from "lucide-react";
 import type { DrawTeam } from "@/types";
@@ -40,8 +41,11 @@ export function ShareDialog({
   teams,
   dateLabel,
 }: ShareDialogProps) {
-  const { settings, labels } = useApp();
+  const { settings, labels, limits, effectiveSettings } = useApp();
   const orderedTeams = useMemo(() => sortTeamsByNumber(teams), [teams]);
+
+  /** No plano Grátis: sempre todos os times e com estrelas. */
+  const forceAll = !limits.allowShareOptions;
 
   const [scope, setScope] = useState("all");
   const [showStars, setShowStars] = useState(true);
@@ -81,19 +85,22 @@ export function ShareDialog({
     [],
   );
 
+  const effectiveScope = forceAll ? "all" : scope;
   const selectedTeams = useMemo(
     () =>
-      scope === "all"
+      effectiveScope === "all"
         ? orderedTeams
-        : orderedTeams.filter((t) => String(t.teamNumber) === scope),
-    [orderedTeams, scope],
+        : orderedTeams.filter((t) => String(t.teamNumber) === effectiveScope),
+    [orderedTeams, effectiveScope],
   );
 
-  const scopeLabel = scope === "all" ? undefined : `Time ${scope}`;
+  const scopeLabel =
+    effectiveScope === "all" ? undefined : `Time ${effectiveScope}`;
   const subtitle =
-    scope === "all"
+    effectiveScope === "all"
       ? undefined
-      : `Time ${scope} • ${labels.term}${dateLabel ? ` • ${dateLabel}` : ""}`;
+      : `Time ${effectiveScope} • ${labels.term}${dateLabel ? ` • ${dateLabel}` : ""}`;
+  const effectiveShowStars = forceAll ? true : showStars;
 
   useEffect(() => {
     if (!open || selectedTeams.length === 0) return;
@@ -105,11 +112,11 @@ export function ShareDialog({
 
     generateShareImage({
       groupName: settings.groupName,
-      groupLogo: settings.groupLogo,
+      groupLogo: effectiveSettings.groupLogo,
       teams: selectedTeams,
       term: labels.term,
       dateLabel,
-      showStars,
+      showStars: effectiveShowStars,
       subtitle,
       scopeLabel,
     })
@@ -136,10 +143,10 @@ export function ShareDialog({
     open,
     selectedTeams,
     settings.groupName,
-    settings.groupLogo,
+    effectiveSettings.groupLogo,
     labels.term,
     dateLabel,
-    showStars,
+    effectiveShowStars,
     subtitle,
     scopeLabel,
   ]);
@@ -192,6 +199,17 @@ export function ShareDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {forceAll ? (
+          <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+            No plano Grátis a imagem inclui todos os times e as estrelas.{" "}
+            <Link
+              className="font-medium text-primary underline underline-offset-4"
+              to="/premium"
+            >
+              Ver Premium
+            </Link>
+          </p>
+        ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5">
             <Label htmlFor="share-scope">Times na imagem</Label>
@@ -239,6 +257,7 @@ export function ShareDialog({
             </p>
           </div>
         </div>
+        )}
 
         <div className="flex max-h-[52vh] items-center justify-center overflow-auto rounded-lg border bg-muted/30 p-2">
           {loading ? (

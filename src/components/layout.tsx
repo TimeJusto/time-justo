@@ -13,6 +13,8 @@ import { APP_LOGO, APP_NAME, DEFAULT_GROUP_NAME } from "@/lib/brand";
 import { Logo } from "@/components/logo";
 import { SyncBanner } from "@/components/sync-banner";
 import { PremiumSyncDialog } from "@/components/premium-sync-dialog";
+import { PremiumNoticeDialog } from "@/components/premium-notice";
+import { UpdateBanner } from "@/components/update-banner";
 
 interface NavItem {
   to: string;
@@ -30,9 +32,9 @@ const NAV_ITEMS: NavItem[] = [
 
 /** Cabeçalho + navegação (tabs no desktop, menu inferior no mobile). */
 export function Layout() {
-  const { settings } = useApp();
+  const { settings, effectiveSettings } = useApp();
   const groupName = settings.groupName?.trim() || DEFAULT_GROUP_NAME;
-  const groupLogo = settings.groupLogo ?? APP_LOGO;
+  const groupLogo = effectiveSettings.groupLogo ?? APP_LOGO;
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
@@ -81,6 +83,7 @@ export function Layout() {
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-24 md:pb-10">
+        <UpdateBanner />
         <SyncBanner />
         <Outlet />
       </main>
@@ -113,6 +116,7 @@ export function Layout() {
       </nav>
 
       <PremiumSyncDialog />
+      <PremiumNoticeDialog />
     </div>
   );
 }

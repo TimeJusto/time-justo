@@ -3498,6 +3498,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      register_trial_draw: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
