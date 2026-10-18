@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { LogIn, MailCheck } from "lucide-react";
+import { LogIn } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { authErrorMessage } from "@/lib/authMessages";
@@ -16,7 +16,6 @@ export default function Entrar() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [resending, setResending] = useState(false);
 
   if (user) return <Navigate to="/configuracoes" replace />;
 
@@ -35,27 +34,6 @@ export default function Entrar() {
     }
     toast.success("Você entrou na sua conta.");
     navigate("/configuracoes");
-  };
-
-  const handleResend = async () => {
-    const target = email.trim();
-    if (!target) {
-      setError("Informe seu e-mail para reenviar a confirmação.");
-      return;
-    }
-    setError(null);
-    setResending(true);
-    const { error: resendError } = await supabase.auth.resend({
-      type: "signup",
-      email: target,
-      options: { emailRedirectTo: `${window.location.origin}/` },
-    });
-    setResending(false);
-    if (resendError) {
-      setError(authErrorMessage(resendError.message));
-      return;
-    }
-    toast.success("Enviamos um novo link de confirmação. Verifique seu e-mail.");
   };
 
   return (
@@ -103,17 +81,6 @@ export default function Entrar() {
         <Button type="submit" className="w-full" disabled={busy}>
           <LogIn className="h-4 w-4" />
           {busy ? "Entrando..." : "Entrar"}
-        </Button>
-
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          onClick={handleResend}
-          disabled={resending}
-        >
-          <MailCheck className="h-4 w-4" />
-          {resending ? "Reenviando..." : "Reenviar e-mail de confirmação"}
         </Button>
 
         <div className="flex flex-col gap-1 text-sm">

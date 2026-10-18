@@ -76,7 +76,7 @@ export default function Admin() {
   const [grants, setGrants] = useState<GrantRow[]>([]);
   const [busy, setBusy] = useState(false);
 
-  const loadUsers = useCallback(async (search: string) => {
+  const loadUsers = useCallback(async (search: string): Promise<AdminUser[]> => {
     const term = search.trim();
     const { data, error } = await supabase.rpc(
       "admin_list_users",
@@ -84,9 +84,11 @@ export default function Admin() {
     );
     if (error) {
       toast.error(adminErrorMessage(error.message));
-      return;
+      return [];
     }
-    setUsers((data ?? []) as unknown as AdminUser[]);
+    const rows = (data ?? []) as unknown as AdminUser[];
+    setUsers(rows);
+    return rows;
   }, []);
 
   const loadGrants = useCallback(async (userId: string) => {
@@ -125,10 +127,14 @@ export default function Admin() {
       return;
     }
     toast.success(success);
-    await loadUsers(query);
-    if (selected) {
-      await loadGrants(selected.id);
-      await loadUsers(query);
+
+    // Depois de qualquer ação: recarrega a lista, os dados do usuário e o
+    // histórico (o efeito de `selected` busca o histórico de novo).
+    const targetId = selected?.id;
+    const rows = await loadUsers(query);
+    if (targetId) {
+      setSelected(rows.find((row) => row.id === targetId) ?? null);
+      await loadGrants(targetId);
     }
   };
 

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { MailCheck, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { APP_SITE_URL } from "@/lib/brand";
 import { authErrorMessage } from "@/lib/authMessages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,9 @@ export default function EsqueciSenha() {
     setBusy(true);
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
       email.trim(),
-      { redirectTo: `${window.location.origin}/redefinir-senha` },
+      // Endereço fixo: não depende da URL base do serviço (que pode ser
+      // sobrescrita pela plataforma).
+      { redirectTo: `${APP_SITE_URL}/redefinir-senha` },
     );
     setBusy(false);
     if (resetError) {

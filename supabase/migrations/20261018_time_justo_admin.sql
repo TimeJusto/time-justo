@@ -160,7 +160,7 @@ begin
    where id = p_user_id;
 
   insert into public.premium_grants (user_id, dias, motivo, admin_email)
-  values (p_user_id, 0, coalesce(nullif(p_reason, ''), 'Voltar para Grátis'),
+  values (p_user_id, 0, coalesce(nullif(p_reason, ''), 'Voltou para Grátis'),
           admin_mail);
 end;
 $$;
@@ -188,7 +188,7 @@ begin
    where id = p_user_id;
 
   insert into public.premium_grants (user_id, dias, motivo, admin_email)
-  values (p_user_id, 0, coalesce(nullif(p_reason, ''), 'Zerar teste'),
+  values (p_user_id, 0, coalesce(nullif(p_reason, ''), 'Teste zerado'),
           admin_mail);
 end;
 $$;
@@ -228,7 +228,7 @@ begin
   values (
     p_user_id, 0,
     coalesce(nullif(p_reason, ''),
-      case when p_make_admin then 'Tornar admin' else 'Remover admin' end),
+      case when p_make_admin then 'Tornou admin' else 'Removeu admin' end),
     admin_mail
   );
 end;
