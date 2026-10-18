@@ -1,0 +1,11 @@
+-- URL base (Site URL) do serviço de autenticação.
+update auth.config_settings
+   set value = 'https://timejusto.vercel.app',
+       updated_at = now()
+ where key = 'GOTRUE_SITE_URL';
+
+insert into auth.config_settings (id, key, value, is_secret)
+select gen_random_uuid(), 'GOTRUE_SITE_URL', 'https://timejusto.vercel.app', false
+ where not exists (
+   select 1 from auth.config_settings where key = 'GOTRUE_SITE_URL'
+ );

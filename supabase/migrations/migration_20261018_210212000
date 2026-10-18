@@ -1,0 +1,6 @@
+-- Recoloca os domínios da Vercel na lista de redirecionamentos permitidos.
+update auth.config_settings
+   set value = value || ',https://timejusto.vercel.app,https://timejusto.vercel.app/**',
+       updated_at = now()
+ where key = 'GOTRUE_URI_ALLOW_LIST'
+   and value not like '%timejusto.vercel.app%';
