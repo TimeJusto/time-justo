@@ -8,6 +8,7 @@ import Historico from "@/pages/Historico";
 import Privacidade from "@/pages/Privacidade";
 import Sobre from "@/pages/Sobre";
 import Premium from "@/pages/Premium";
+import Admin from "@/pages/Admin";
 import Entrar from "@/pages/Entrar";
 import CriarConta from "@/pages/CriarConta";
 import EsqueciSenha from "@/pages/EsqueciSenha";
@@ -38,6 +39,7 @@ export const routers = [
       { path: "privacidade", name: "privacidade", element: <Privacidade /> },
       { path: "sobre", name: "sobre", element: <Sobre /> },
       { path: "premium", name: "premium", element: <Premium /> },
+      { path: "admin", name: "admin", element: <Admin /> },
       { path: "excluir-conta", name: "excluir-conta", element: <ExcluirConta /> },
     ],
   },

@@ -32,6 +32,8 @@ interface AuthContextValue {
   /** Recursos Premium (inclui o teste grátis ativo). */
   isPremium: boolean;
   premiumSource: PremiumSource;
+  /** Somente para a área administrativa (validada no servidor). */
+  isAdmin: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -164,6 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [profile],
   );
   const isPremium = premiumSource !== "free";
+  const isAdmin = profile?.role === "admin";
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -173,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isCloud,
       isPremium,
       premiumSource,
+      isAdmin,
       loading,
       signOut,
       refreshProfile,
@@ -184,6 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isCloud,
       isPremium,
       premiumSource,
+      isAdmin,
       loading,
       signOut,
       refreshProfile,

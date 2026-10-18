@@ -3456,6 +3456,33 @@ export type Database = {
         }
         Relationships: []
       }
+      premium_grants: {
+        Row: {
+          admin_email: string | null
+          created_at: string
+          dias: number | null
+          id: string
+          motivo: string | null
+          user_id: string
+        }
+        Insert: {
+          admin_email?: string | null
+          created_at?: string
+          dias?: number | null
+          id?: string
+          motivo?: string | null
+          user_id: string
+        }
+        Update: {
+          admin_email?: string | null
+          created_at?: string
+          dias?: number | null
+          id?: string
+          motivo?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -3494,6 +3521,43 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_grant_lifetime: {
+        Args: { p_reason: string; p_user_id: string }
+        Returns: undefined
+      }
+      admin_grant_premium_days: {
+        Args: { p_days: number; p_reason: string; p_user_id: string }
+        Returns: undefined
+      }
+      admin_list_users: {
+        Args: { p_search?: string }
+        Returns: {
+          created_at: string
+          email: string
+          id: string
+          plan: string
+          premium_until: string
+          role: string
+          trial_days_used: number
+          trial_last_day: string
+        }[]
+      }
+      admin_reset_trial: {
+        Args: { p_reason: string; p_user_id: string }
+        Returns: undefined
+      }
+      admin_set_admin: {
+        Args: { p_make_admin: boolean; p_reason: string; p_user_id: string }
+        Returns: undefined
+      }
+      admin_set_free: {
+        Args: { p_reason: string; p_user_id: string }
+        Returns: undefined
+      }
+      is_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       is_cloud_user: {
         Args: Record<PropertyKey, never>
         Returns: boolean

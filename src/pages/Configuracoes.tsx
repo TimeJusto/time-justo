@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { ImagePlus, RotateCcw, Save, ShieldCheck, Trash2, X } from "lucide-react";
 import type { Settings } from "@/types";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import {
   DEFAULT_GAME_TERM,
   GAME_TERMS,
@@ -41,6 +42,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 export default function Configuracoes() {
   const { settings, saveSettings, resetAll, clearAll, limits, isPremium } =
     useApp();
+  const { isAdmin } = useAuth();
   const [form, setForm] = useState<Settings>(() =>
     applyPlanLimits(settings, limits),
   );
@@ -468,6 +470,21 @@ export default function Configuracoes() {
               </Button>
             </div>
           </div>
+
+          {isAdmin ? (
+            <div className="rounded-xl border border-primary/30 bg-card p-4">
+              <h3 className="mb-2 text-sm font-bold uppercase tracking-wide">
+                Administração
+              </h3>
+              <Link
+                to="/admin"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                Área admin — usuários e bonificações
+              </Link>
+            </div>
+          ) : null}
 
           <div className="rounded-xl border bg-card p-4">
             <h3 className="mb-2 text-sm font-bold uppercase tracking-wide">
