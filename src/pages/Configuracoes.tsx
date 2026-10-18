@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Logo } from "@/components/logo";
+import { AccountPanel } from "@/components/account-panel";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export default function Configuracoes() {
@@ -130,6 +131,8 @@ export default function Configuracoes() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
+          <AccountPanel />
+
           <div className="rounded-xl border bg-card p-5">
             <h3 className="mb-4 text-sm font-bold uppercase tracking-wide">
               Identidade do grupo
@@ -429,6 +432,12 @@ export default function Configuracoes() {
               >
                 <ShieldCheck className="h-4 w-4" />
                 Política de Privacidade
+              </Link>
+              <Link
+                to="/excluir-conta"
+                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Excluir minha conta
               </Link>
             </div>
           </div>

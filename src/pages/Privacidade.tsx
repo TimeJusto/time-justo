@@ -23,7 +23,8 @@ export default function Privacidade() {
           </h3>
           <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
             <li>
-              nomes dos jogadores, posição, notas (estrelas) e se estão confirmados;
+              nomes dos jogadores, posição, notas (estrelas) e se estão
+              confirmados;
             </li>
             <li>
               configurações do grupo: nome e logo do grupo, como o grupo chama o
@@ -33,7 +34,11 @@ export default function Privacidade() {
             </li>
             <li>
               histórico dos sorteios salvos (número, data e os times com os
-              jogadores do momento do sorteio).
+              jogadores do momento do sorteio);
+            </li>
+            <li>
+              se você cria uma conta: e-mail da conta, guardado no servidor para
+              controlar o plano (Grátis ou Premium).
             </li>
           </ul>
         </section>
@@ -43,9 +48,12 @@ export default function Privacidade() {
             Onde os dados ficam
           </h3>
           <p className="text-muted-foreground">
-            Esses dados ficam salvos no próprio aparelho, no armazenamento local
-            do navegador/aplicativo. Eles não são enviados para servidores nossos
-            nem de terceiros.
+            Sem conta e no plano Grátis, tudo fica salvo apenas no seu próprio
+            aparelho (armazenamento local do navegador/aplicativo). No plano
+            Premium, jogadores, configurações e histórico ficam salvos também na
+            nuvem, no servidor do app, protegidos pelo seu login. Em qualquer
+            caso, uma cópia local é mantida no aparelho para o app abrir rápido e
+            funcionar sem internet.
           </p>
         </section>
 
@@ -62,12 +70,20 @@ export default function Privacidade() {
 
         <section className="space-y-2">
           <h3 className="text-sm font-bold uppercase tracking-wide">
-            Como apagar seus dados
+            Conta e exclusão
           </h3>
           <p className="text-muted-foreground">
-            Em Configurações, use "Apagar todos os dados" para remover o cadastro,
-            as configurações, o sorteio atual e o histórico deste aparelho. A ação
-            é imediata e não pode ser desfeita.
+            Você pode apagar tudo a qualquer momento em Configurações → "Apagar
+            todos os dados". Para apagar a conta e todos os dados da nuvem, use
+            "Excluir minha conta" em Configurações → Minha conta, ou siga as
+            instruções da página{" "}
+            <Link
+              className="font-medium text-primary underline underline-offset-4"
+              to="/excluir-conta"
+            >
+              Excluir minha conta
+            </Link>
+            .
           </p>
         </section>
 
@@ -77,9 +93,9 @@ export default function Privacidade() {
             Dúvidas sobre privacidade:{" "}
             <a
               className="font-medium text-primary underline underline-offset-4"
-              href="mailto:eduardo_colmo@hotmail.com"
+              href="mailto:timejusto.app@gmail.com"
             >
-              eduardo_colmo@hotmail.com
+              timejusto.app@gmail.com
             </a>
           </p>
         </section>
@@ -93,7 +109,7 @@ export default function Privacidade() {
           </Link>
         </Button>
         <Button asChild variant="ghost">
-          <Link to="/times">Ir para o app</Link>
+          <Link to="/excluir-conta">Excluir minha conta</Link>
         </Button>
       </div>
     </div>

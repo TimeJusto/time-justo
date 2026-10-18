@@ -1,0 +1,181 @@
+-- =========================================================
+-- Time Justo — contas e dados na nuvem (plano Premium)
+-- Base pública vazia (0 tabelas / 0 funções), sem nada a preservar.
+-- =========================================================
+
+-- 1) PERFIS -------------------------------------------------
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text,
+  role text not null default 'user' check (role in ('user','admin')),
+  plan text not null default 'free' check (plan in ('free','premium')),
+  premium_until timestamptz,
+  trial_days_used integer not null default 0,
+  trial_last_day date,
+  created_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+
+create policy profiles_select_own on public.profiles
+  for select to authenticated
+  using (auth.uid() = id);
+
+-- Sem políticas de INSERT/UPDATE/DELETE para o app: o usuário apenas lê o
+-- próprio perfil e não consegue alterar role, plan, premium_until nem os
+-- campos de teste. Escritas acontecem só via trigger / serviço do servidor.
+
+grant select on public.profiles to authenticated;
+
+-- 2) isCloudUser --------------------------------------------
+create or replace function public.is_cloud_user()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and (
+        p.role = 'admin'
+        or (p.plan = 'premium' and p.premium_until is not null and p.premium_until > now())
+      )
+  );
+$$;
+
+revoke all on function public.is_cloud_user() from public;
+grant execute on function public.is_cloud_user() to authenticated;
+
+-- 3) Trigger de criação do perfil ----------------------------
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, email, role)
+  values (
+    new.id,
+    new.email,
+    case
+      when lower(coalesce(new.email, '')) = 'timejusto.app@gmail.com' then 'admin'
+      else 'user'
+    end
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+create or replace trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- 4) JOGADORES ----------------------------------------------
+create table if not exists public.players (
+  id uuid primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  position text not null,
+  stars integer not null,
+  confirmed boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists players_user_id_idx on public.players (user_id);
+alter table public.players enable row level security;
+
+-- Leitura: apenas as próprias linhas (permite baixar a cópia ao perder o Premium).
+create policy players_select_own on public.players
+  for select to authenticated using (auth.uid() = user_id);
+
+-- Escrita: apenas as próprias linhas e somente com direito à nuvem.
+create policy players_insert_cloud on public.players
+  for insert to authenticated
+  with check (auth.uid() = user_id and public.is_cloud_user());
+
+create policy players_update_cloud on public.players
+  for update to authenticated
+  using (auth.uid() = user_id and public.is_cloud_user())
+  with check (auth.uid() = user_id and public.is_cloud_user());
+
+create policy players_delete_cloud on public.players
+  for delete to authenticated
+  using (auth.uid() = user_id and public.is_cloud_user());
+
+grant select, insert, update, delete on public.players to authenticated;
+
+-- 5) CONFIGURAÇÕES ------------------------------------------
+create table if not exists public.app_settings (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  settings jsonb not null default '{}'::jsonb,
+  current_draw jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.app_settings enable row level security;
+
+create policy app_settings_select_own on public.app_settings
+  for select to authenticated using (auth.uid() = user_id);
+
+create policy app_settings_insert_cloud on public.app_settings
+  for insert to authenticated
+  with check (auth.uid() = user_id and public.is_cloud_user());
+
+create policy app_settings_update_cloud on public.app_settings
+  for update to authenticated
+  using (auth.uid() = user_id and public.is_cloud_user())
+  with check (auth.uid() = user_id and public.is_cloud_user());
+
+create policy app_settings_delete_cloud on public.app_settings
+  for delete to authenticated
+  using (auth.uid() = user_id and public.is_cloud_user());
+
+grant select, insert, update, delete on public.app_settings to authenticated;
+
+-- 6) HISTÓRICO (matches) ------------------------------------
+create table if not exists public.matches (
+  id uuid primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  baba_number integer not null,
+  date text not null,
+  history_window integer not null default 1,
+  teams jsonb not null default '[]'::jsonb,
+  repetition_score integer not null default 0,
+  attempts integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists matches_user_id_idx on public.matches (user_id);
+alter table public.matches enable row level security;
+
+create policy matches_select_own on public.matches
+  for select to authenticated using (auth.uid() = user_id);
+
+create policy matches_insert_cloud on public.matches
+  for insert to authenticated
+  with check (auth.uid() = user_id and public.is_cloud_user());
+
+create policy matches_update_cloud on public.matches
+  for update to authenticated
+  using (auth.uid() = user_id and public.is_cloud_user())
+  with check (auth.uid() = user_id and public.is_cloud_user());
+
+create policy matches_delete_cloud on public.matches
+  for delete to authenticated
+  using (auth.uid() = user_id and public.is_cloud_user());
+
+grant select, insert, update, delete on public.matches to authenticated;
+
+-- 7) ADMIN -------------------------------------------------
+-- Torna a conta do responsável administradora assim que ela existir.
+update public.profiles
+   set role = 'admin'
+ where lower(email) = 'timejusto.app@gmail.com';

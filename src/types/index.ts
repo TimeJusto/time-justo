@@ -66,6 +66,30 @@ export interface CurrentDraw {
   attempts: number;
 }
 
+export type ProfileRole = "user" | "admin";
+export type ProfilePlan = "free" | "premium";
+
+export interface Profile {
+  id: string;
+  email: string | null;
+  role: ProfileRole;
+  plan: ProfilePlan;
+  premiumUntil: string | null;
+  trialDaysUsed: number;
+  trialLastDay: string | null;
+  createdAt: string;
+}
+
+/** Fotografia completa dos dados do app (aparelho ou nuvem). */
+export interface AppDataSnapshot {
+  players: Player[];
+  settings: Settings;
+  currentDraw: CurrentDraw | null;
+  history: Draw[];
+}
+
+export type SyncStatus = "idle" | "syncing" | "offline" | "pending" | "error";
+
 export interface DrawValidation {
   teams: number;
   playersPerTeam: number;

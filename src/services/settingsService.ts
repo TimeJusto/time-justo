@@ -12,9 +12,14 @@ function intAtLeast(value: unknown, min: number, fallback: number): number {
   return Math.max(min, parsed);
 }
 
-export function getSettings(): Settings {
-  const stored = loadJSON<Partial<Settings>>(STORAGE_KEYS.settings, {});
-  const merged = { ...INITIAL_SETTINGS, ...stored };
+/**
+ * Normaliza um objeto de configurações (do aparelho ou da nuvem) aplicando
+ * defaults e limites. Usado como fonte única de verdade para Settings.
+ */
+export function normalizeSettings(
+  raw: Partial<Settings> | null | undefined,
+): Settings {
+  const merged = { ...INITIAL_SETTINGS, ...(raw ?? {}) };
 
   return {
     numberOfTeams: intAtLeast(
@@ -57,6 +62,12 @@ export function getSettings(): Settings {
     groupLogo: merged.groupLogo ?? null,
     gameTerm: isGameTerm(merged.gameTerm) ? merged.gameTerm : DEFAULT_GAME_TERM,
   };
+}
+
+export function getSettings(): Settings {
+  return normalizeSettings(
+    loadJSON<Partial<Settings> | null>(STORAGE_KEYS.settings, null),
+  );
 }
 
 export function saveSettings(settings: Settings): void {

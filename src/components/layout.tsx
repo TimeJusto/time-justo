@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { useApp } from "@/context/AppContext";
 import { APP_LOGO, APP_NAME, DEFAULT_GROUP_NAME } from "@/lib/brand";
 import { Logo } from "@/components/logo";
+import { SyncBanner } from "@/components/sync-banner";
+import { PremiumSyncDialog } from "@/components/premium-sync-dialog";
 
 interface NavItem {
   to: string;
@@ -79,6 +81,7 @@ export function Layout() {
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-24 md:pb-10">
+        <SyncBanner />
         <Outlet />
       </main>
 
@@ -108,6 +111,8 @@ export function Layout() {
           ))}
         </div>
       </nav>
+
+      <PremiumSyncDialog />
     </div>
   );
 }

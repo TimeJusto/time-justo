@@ -8,6 +8,14 @@ export const STORAGE_KEYS = {
   history: `${PREFIX}history`,
 } as const;
 
+/** Chaves internas da camada de dados (metadados de sincronização). */
+export const REPO_KEYS = {
+  owner: `${PREFIX}local-owner`,
+  lastSync: `${PREFIX}last-sync`,
+  meta: `${PREFIX}repo-meta`,
+  profileCache: `${PREFIX}profile-cache`,
+} as const;
+
 export function loadJSON<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);

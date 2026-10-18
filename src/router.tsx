@@ -7,6 +7,11 @@ import Configuracoes from "@/pages/Configuracoes";
 import Historico from "@/pages/Historico";
 import Privacidade from "@/pages/Privacidade";
 import Sobre from "@/pages/Sobre";
+import Entrar from "@/pages/Entrar";
+import CriarConta from "@/pages/CriarConta";
+import EsqueciSenha from "@/pages/EsqueciSenha";
+import RedefinirSenha from "@/pages/RedefinirSenha";
+import ExcluirConta from "@/pages/ExcluirConta";
 import NotFound from "@/pages/NotFound";
 
 export const routers = [
@@ -25,8 +30,13 @@ export const routers = [
       { path: "times", name: "times", element: <Times /> },
       { path: "configuracoes", name: "configuracoes", element: <Configuracoes /> },
       { path: "historico", name: "historico", element: <Historico /> },
+      { path: "entrar", name: "entrar", element: <Entrar /> },
+      { path: "criar-conta", name: "criar-conta", element: <CriarConta /> },
+      { path: "esqueci-senha", name: "esqueci-senha", element: <EsqueciSenha /> },
+      { path: "redefinir-senha", name: "redefinir-senha", element: <RedefinirSenha /> },
       { path: "privacidade", name: "privacidade", element: <Privacidade /> },
       { path: "sobre", name: "sobre", element: <Sobre /> },
+      { path: "excluir-conta", name: "excluir-conta", element: <ExcluirConta /> },
     ],
   },
   /* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */
