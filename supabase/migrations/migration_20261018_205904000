@@ -1,0 +1,7 @@
+-- Confirma somente a conta de teste informada (email_confirmed_at).
+-- confirmed_at é coluna gerada, por isso não é escrita.
+update auth.users
+   set email_confirmed_at = coalesce(email_confirmed_at, now()),
+       confirmation_token = '',
+       updated_at = now()
+ where lower(email) = 'timejusto.app+teste1@gmail.com';
