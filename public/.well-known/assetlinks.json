@@ -1,1 +1,12 @@
-[{ "relation": ["delegate_permission/common.handle_all_urls"], "target": { "namespace": "android_app", "package_name": "com.timejusto.app", "sha256_cert_fingerprints": ["AD:2E:F0:54:D7:57:39:E3:70:D3:40:CC:ED:02:A5:F4:53:2E:23:27:0F:B8:A6:6D:10:6E:62:02:89:3F:C1:C8"] } }]
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.timejusto.app",
+      "sha256_cert_fingerprints":
+        ["B3:61:1C:B4:B3:0C:C0:77:A5:82:DC:9C:5B:9F:72:0F:A7:F2:E7:7D:0A:BA:6D:61:74:E9:30:65:26:DC:96:26",
+         "AD:2E:F0:54:D7:57:39:E3:70:D3:40:CC:ED:02:A5:F4:53:2E:23:27:0F:B8:A6:6D:10:6E:62:02:89:3F:C1:C8"]
+    }
+  }
+]
