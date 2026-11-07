@@ -4,7 +4,7 @@
 export const APP_NAME = "Time Justo";
 
 /** Versão exibida na página Sobre (acompanha a versão do package.json). */
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "1.0.1";
 
 /** Endereço público do app (usado em links enviados por e-mail). */
 export const APP_SITE_URL = "https://timejusto.vercel.app";

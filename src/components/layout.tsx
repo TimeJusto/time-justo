@@ -1,7 +1,9 @@
+import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ClipboardList,
   History,
+  Lightbulb,
   Settings,
   Shuffle,
   Users,
@@ -15,6 +17,7 @@ import { SyncBanner } from "@/components/sync-banner";
 import { PremiumSyncDialog } from "@/components/premium-sync-dialog";
 import { PremiumNoticeDialog } from "@/components/premium-notice";
 import { UpdateBanner } from "@/components/update-banner";
+import { SuggestionDialog } from "@/components/suggestion-dialog";
 
 interface NavItem {
   to: string;
@@ -35,6 +38,7 @@ export function Layout() {
   const { settings, effectiveSettings } = useApp();
   const groupName = settings.groupName?.trim() || DEFAULT_GROUP_NAME;
   const groupLogo = effectiveSettings.groupLogo ?? APP_LOGO;
+  const [suggestionOpen, setSuggestionOpen] = useState(false);
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
@@ -79,6 +83,14 @@ export function Layout() {
               {item.label}
             </NavLink>
           ))}
+          <button
+            type="button"
+            onClick={() => setSuggestionOpen(true)}
+            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <Lightbulb className="h-4 w-4" />
+            Enviar sugestão
+          </button>
         </nav>
       </header>
 
@@ -96,7 +108,7 @@ export function Layout() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background shadow-[0_-4px_16px_rgba(0,0,0,0.06)] md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
@@ -112,11 +124,23 @@ export function Layout() {
               <span className="max-w-full">{item.label}</span>
             </NavLink>
           ))}
+          <button
+            type="button"
+            onClick={() => setSuggestionOpen(true)}
+            className="flex flex-col items-center justify-center gap-0.5 px-0.5 py-2 text-center text-[9px] font-medium leading-tight text-muted-foreground transition-colors"
+          >
+            <Lightbulb className="h-5 w-5" />
+            <span className="max-w-full">Enviar sugestão</span>
+          </button>
         </div>
       </nav>
 
       <PremiumSyncDialog />
       <PremiumNoticeDialog />
+      <SuggestionDialog
+        open={suggestionOpen}
+        onOpenChange={setSuggestionOpen}
+      />
     </div>
   );
 }

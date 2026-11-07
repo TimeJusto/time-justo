@@ -20,6 +20,7 @@ import {
 } from "@/lib/scale";
 import {
   APP_LOGO,
+  APP_VERSION,
   DEFAULT_GROUP_NAME,
   GROUP_NAME_MAX_LENGTH,
 } from "@/lib/brand";
@@ -534,6 +535,10 @@ export default function Configuracoes() {
         destructive
         onConfirm={handleClear}
       />
+
+      <p className="text-center text-xs text-muted-foreground">
+        Versão {APP_VERSION}
+      </p>
     </div>
   );
 }
