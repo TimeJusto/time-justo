@@ -408,6 +408,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [userId, premiumSource, refreshProfile]);
 
   const runDraw = useCallback((): DrawResult => {
+    // Sorteio bloqueado enquanto o usuário não definiu times e jogadores.
+    if (!settings.configured) {
+      return { valid: false, teams: [], repetitionScore: 0, attempts: 0 };
+    }
+
     if (limits.maxDrawDaysPerMonth !== null && limits.maxDrawsPerDay !== null) {
       const allowance = checkDrawAllowance(
         readDrawUsage(),
@@ -458,6 +463,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     effectiveSettings,
     limits,
     premiumSource,
+    settings.configured,
     commit,
     registerTrialDraw,
   ]);

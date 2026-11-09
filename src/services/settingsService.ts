@@ -19,6 +19,7 @@ function intAtLeast(value: unknown, min: number, fallback: number): number {
 export function normalizeSettings(
   raw: Partial<Settings> | null | undefined,
 ): Settings {
+  const wasSaved = raw !== null && raw !== undefined;
   const merged = { ...INITIAL_SETTINGS, ...(raw ?? {}) };
 
   return {
@@ -55,6 +56,8 @@ export function normalizeSettings(
     starScale: isStarScale(merged.starScale)
       ? merged.starScale
       : DEFAULT_STAR_SCALE,
+    // Quem já tinha configuração salva (sem este campo) continua configurado.
+    configured: wasSaved ? raw?.configured !== false : false,
     groupName: (merged.groupName?.trim() || DEFAULT_GROUP_NAME).slice(
       0,
       GROUP_NAME_MAX_LENGTH,

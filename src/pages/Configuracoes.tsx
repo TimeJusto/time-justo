@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { ImagePlus, RotateCcw, Save, ShieldCheck, Trash2, X } from "lucide-react";
+import {
+  ChevronDown,
+  ImagePlus,
+  RotateCcw,
+  Save,
+  ShieldCheck,
+  Trash2,
+  X,
+} from "lucide-react";
 import type { Settings } from "@/types";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
@@ -27,6 +35,11 @@ import {
 import { fileToResizedDataUrl } from "@/lib/imageUtils";
 import { applyPlanLimits } from "@/lib/planLimits";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -49,17 +62,36 @@ export default function Configuracoes() {
   );
   const [resetOpen, setResetOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
+  const [teamsInput, setTeamsInput] = useState(() => {
+    const initial = applyPlanLimits(settings, limits);
+    return initial.configured ? String(initial.numberOfTeams) : "";
+  });
+  const [perTeamInput, setPerTeamInput] = useState(() => {
+    const initial = applyPlanLimits(settings, limits);
+    return initial.configured ? String(initial.playersPerTeam) : "";
+  });
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setForm(applyPlanLimits(settings, limits));
+    const next = applyPlanLimits(settings, limits);
+    setForm(next);
+    setTeamsInput(next.configured ? String(next.numberOfTeams) : "");
+    setPerTeamInput(next.configured ? String(next.playersPerTeam) : "");
   }, [settings, limits]);
 
   const formLabels = getLabels(
     isGameTerm(form.gameTerm) ? form.gameTerm : DEFAULT_GAME_TERM,
   );
 
-  const requiredPlayers = form.numberOfTeams * form.playersPerTeam;
+  const liveTeams = teamsInput === "" ? null : Number(teamsInput);
+  const livePerTeam = perTeamInput === "" ? null : Number(perTeamInput);
+  const liveTotal =
+    liveTeams !== null &&
+    livePerTeam !== null &&
+    liveTeams >= 2 &&
+    livePerTeam >= 1
+      ? liveTeams * livePerTeam
+      : null;
 
   /** Campos numéricos: aceitam apenas dígitos (a validação acontece ao salvar). */
   const setNumber = (field: keyof Settings, raw: string) => {
@@ -83,28 +115,33 @@ export default function Configuracoes() {
   };
 
   const handleSave = () => {
-    if (form.numberOfTeams < 2) {
-      toast.error("A quantidade de times deve ser no mínimo 2.");
-      return;
-    }
-    if (form.playersPerTeam < 1) {
-      toast.error("O número de jogadores por time deve ser no mínimo 1.");
-      return;
-    }
     if (form.maxAttempts < 1) {
       toast.error("O número de tentativas deve ser no mínimo 1.");
       return;
     }
 
+    const teams = teamsInput === "" ? null : Math.round(Number(teamsInput));
+    const perTeam =
+      perTeamInput === "" ? null : Math.round(Number(perTeamInput));
+    const hasConfig =
+      teams !== null && teams >= 2 && perTeam !== null && perTeam >= 1;
+
     const normalized: Settings = {
       ...form,
-      numberOfTeams: Math.max(2, Math.round(form.numberOfTeams)),
-      playersPerTeam: Math.max(1, Math.round(form.playersPerTeam)),
+      numberOfTeams:
+        teams !== null && teams >= 2
+          ? teams
+          : Math.max(2, Math.round(settings.numberOfTeams)),
+      playersPerTeam:
+        perTeam !== null && perTeam >= 1
+          ? perTeam
+          : Math.max(1, Math.round(settings.playersPerTeam)),
       historyWindow: Math.max(0, Math.round(form.historyWindow)),
       maxStarDifference: Math.max(0, Math.round(form.maxStarDifference)),
       maxPositionDifference: Math.max(0, Math.round(form.maxPositionDifference)),
       maxAttempts: Math.max(1, Math.round(form.maxAttempts)),
       starScale: isStarScale(form.starScale) ? form.starScale : DEFAULT_STAR_SCALE,
+      configured: hasConfig,
       groupName:
         form.groupName.trim().slice(0, GROUP_NAME_MAX_LENGTH) ||
         DEFAULT_GROUP_NAME,
@@ -112,7 +149,16 @@ export default function Configuracoes() {
 
     saveSettings(normalized);
     setForm(normalized);
-    toast.success("Configurações salvas com sucesso.");
+    setTeamsInput(hasConfig ? String(normalized.numberOfTeams) : "");
+    setPerTeamInput(hasConfig ? String(normalized.playersPerTeam) : "");
+
+    if (hasConfig) {
+      toast.success("Configurações salvas com sucesso.");
+    } else {
+      toast.warning(
+        "Defina quantos times e jogadores por time para liberar o sorteio.",
+      );
+    }
   };
 
   const handleReset = () => {
@@ -259,10 +305,7 @@ export default function Configuracoes() {
               Parâmetros do sorteio
             </h3>
             <p className="mb-4 text-xs text-muted-foreground">
-              Jogadores necessários: {requiredPlayers} ({form.numberOfTeams}{" "}
-              {form.numberOfTeams === 1 ? "time" : "times"} ×{" "}
-              {form.playersPerTeam}{" "}
-              {form.playersPerTeam === 1 ? "jogador" : "jogadores"} por time)
+              Ex.: 4 times de 7 = 28 jogadores. Você escolhe.
             </p>
             {!isPremium ? (
               <p className="mb-4 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
@@ -280,18 +323,22 @@ export default function Configuracoes() {
             ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
-                <Label htmlFor="num-teams">Quantidade de times</Label>
+                <Label htmlFor="num-teams">Número de times</Label>
                 <Input
                   id="num-teams"
                   type="number"
+                  inputMode="numeric"
                   min={2}
                   max={limits.maxTeams ?? undefined}
-                  value={form.numberOfTeams}
-                  onChange={(e) => setNumber("numberOfTeams", e.target.value)}
+                  placeholder="Ex.: 4"
+                  value={teamsInput}
+                  onChange={(e) =>
+                    setTeamsInput(e.target.value.replace(/[^\d]/g, ""))
+                  }
                 />
                 <p className="text-xs text-muted-foreground">
                   {limits.maxTeams !== null
-                    ? `Plano Grátis: até ${limits.maxTeams} times.`
+                    ? `Mínimo de 2 times · Grátis: até ${limits.maxTeams}.`
                     : "Mínimo de 2 times, sem limite máximo."}
                 </p>
               </div>
@@ -301,14 +348,18 @@ export default function Configuracoes() {
                 <Input
                   id="per-team"
                   type="number"
+                  inputMode="numeric"
                   min={1}
                   max={limits.maxPlayersPerTeam ?? undefined}
-                  value={form.playersPerTeam}
-                  onChange={(e) => setNumber("playersPerTeam", e.target.value)}
+                  placeholder="Ex.: 7"
+                  value={perTeamInput}
+                  onChange={(e) =>
+                    setPerTeamInput(e.target.value.replace(/[^\d]/g, ""))
+                  }
                 />
                 <p className="text-xs text-muted-foreground">
                   {limits.maxPlayersPerTeam !== null
-                    ? `Plano Grátis: até ${limits.maxPlayersPerTeam} jogadores por time.`
+                    ? `Mínimo de 1 jogador por time · Grátis: até ${limits.maxPlayersPerTeam}.`
                     : "Mínimo de 1 jogador por time."}
                 </p>
               </div>
@@ -345,7 +396,28 @@ export default function Configuracoes() {
                     : "As notas já cadastradas não são convertidas ao trocar a escala."}
                 </p>
               </div>
+            </div>
 
+            <p className="mt-4 rounded-md bg-muted px-3 py-2 text-sm font-medium text-foreground">
+              Total no Elenco do Dia:{" "}
+              <span className="font-bold">{liveTotal ?? "—"}</span>
+              {liveTotal !== null ? " jogadores" : ""}
+            </p>
+
+            <Collapsible className="mt-4">
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-between text-muted-foreground"
+                >
+                  Ajustes avançados
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-3">
+                <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="window">{formLabels.windowLabel}</Label>
                 <Input
@@ -417,7 +489,9 @@ export default function Configuracoes() {
                     : "Número exato de tentativas, sem mínimo oculto."}
                 </p>
               </div>
-            </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             <Button className="mt-5" onClick={handleSave}>
               <Save className="h-4 w-4" />

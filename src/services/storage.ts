@@ -15,7 +15,17 @@ export const REPO_KEYS = {
   meta: `${PREFIX}repo-meta`,
   profileCache: `${PREFIX}profile-cache`,
   drawUsage: `${PREFIX}draw-usage`,
+  onboardingSeen: `${PREFIX}onboarding-seen`,
 } as const;
+
+/** O guia "Como começar" já foi mostrado neste aparelho. */
+export function hasSeenOnboarding(): boolean {
+  return localStorage.getItem(REPO_KEYS.onboardingSeen) === "1";
+}
+
+export function markOnboardingSeen(): void {
+  localStorage.setItem(REPO_KEYS.onboardingSeen, "1");
+}
 
 /** Espaço dos dados do aparelho (plano Grátis, sem login). */
 export const DEVICE_SCOPE = "device";

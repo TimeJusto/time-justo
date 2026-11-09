@@ -15,6 +15,7 @@ export const INITIAL_SETTINGS: Settings = {
   maxPositionDifference: 1,
   maxAttempts: 500,
   starScale: DEFAULT_STAR_SCALE,
+  configured: false,
   groupName: DEFAULT_GROUP_NAME,
   groupLogo: null,
   gameTerm: DEFAULT_GAME_TERM,

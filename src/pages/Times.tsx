@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   MessageCircle,
   Save,
+  Settings as SettingsIcon,
   Shuffle,
   UserPlus,
 } from "lucide-react";
@@ -35,6 +36,9 @@ export default function Times() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [diagnostics, setDiagnostics] = useState<DrawDiagnostics | null>(null);
+
+  /** Só libera o sorteio depois de definir times e jogadores por time. */
+  const ready = effectiveSettings.configured;
 
   const validation = useMemo(
     () =>
@@ -89,7 +93,12 @@ export default function Times() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button size="lg" onClick={handleDraw} className="text-base">
+        <Button
+          size="lg"
+          onClick={handleDraw}
+          className="text-base"
+          disabled={!ready}
+        >
           <Shuffle className="h-5 w-5" />
           SORTEAR TIMES
         </Button>
@@ -120,6 +129,19 @@ export default function Times() {
           </span>
         ) : null}
       </div>
+
+      {!ready ? (
+        <p className="text-sm text-muted-foreground">
+          Defina quantos times e jogadores por time em{" "}
+          <Link
+            to="/configuracoes"
+            className="font-medium text-primary underline underline-offset-4"
+          >
+            Configurações
+          </Link>
+          .
+        </p>
+      ) : null}
 
       {diagnostics ? (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
@@ -159,7 +181,22 @@ export default function Times() {
         </div>
       ) : (
         <div className="rounded-xl border border-dashed bg-card p-10 text-center">
-          {players.length === 0 ? (
+          {!ready ? (
+            <>
+              <p className="text-base font-semibold text-foreground">
+                Defina o tamanho do sorteio
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Escolha quantos times e quantos jogadores por time para começar.
+              </p>
+              <Button asChild className="mt-4">
+                <Link to="/configuracoes">
+                  <SettingsIcon className="h-4 w-4" />
+                  Abrir Configurações
+                </Link>
+              </Button>
+            </>
+          ) : players.length === 0 ? (
             <>
               <p className="text-base font-semibold text-foreground">
                 Cadastre os jogadores do seu grupo

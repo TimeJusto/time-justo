@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
+  BookOpen,
   ClipboardList,
   History,
   Lightbulb,
@@ -11,6 +12,7 @@ import {
 import { NavLink, Outlet } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/AppContext";
+import { hasSeenOnboarding, markOnboardingSeen } from "@/services/storage";
 import { APP_LOGO, APP_NAME, DEFAULT_GROUP_NAME } from "@/lib/brand";
 import { Logo } from "@/components/logo";
 import { SyncBanner } from "@/components/sync-banner";
@@ -18,6 +20,7 @@ import { PremiumSyncDialog } from "@/components/premium-sync-dialog";
 import { PremiumNoticeDialog } from "@/components/premium-notice";
 import { UpdateBanner } from "@/components/update-banner";
 import { SuggestionDialog } from "@/components/suggestion-dialog";
+import { HowToStartDialog } from "@/components/how-to-start-dialog";
 
 interface NavItem {
   to: string;
@@ -39,6 +42,21 @@ export function Layout() {
   const groupName = settings.groupName?.trim() || DEFAULT_GROUP_NAME;
   const groupLogo = effectiveSettings.groupLogo ?? APP_LOGO;
   const [suggestionOpen, setSuggestionOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+
+  // Primeiro acesso sem configuração salva: mostra o guia uma vez.
+  useEffect(() => {
+    if (settings.configured || hasSeenOnboarding()) return;
+    const timer = setTimeout(() => {
+      if (!hasSeenOnboarding()) setGuideOpen(true);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [settings.configured]);
+
+  const closeGuide = (open: boolean) => {
+    setGuideOpen(open);
+    if (!open) markOnboardingSeen();
+  };
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
@@ -85,6 +103,14 @@ export function Layout() {
           ))}
           <button
             type="button"
+            onClick={() => setGuideOpen(true)}
+            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <BookOpen className="h-4 w-4" />
+            Como usar
+          </button>
+          <button
+            type="button"
             onClick={() => setSuggestionOpen(true)}
             className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white"
           >
@@ -108,14 +134,14 @@ export function Layout() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background shadow-[0_-4px_16px_rgba(0,0,0,0.06)] md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className="grid grid-cols-6">
+        <div className="grid grid-cols-7">
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  "flex flex-col items-center justify-center gap-0.5 px-0.5 py-2 text-center text-[9px] font-medium leading-tight transition-colors",
+                  "flex flex-col items-center justify-center gap-0.5 px-0 py-2 text-center text-[8px] font-medium leading-tight transition-colors",
                   isActive ? "text-primary" : "text-muted-foreground",
                 )
               }
@@ -126,8 +152,16 @@ export function Layout() {
           ))}
           <button
             type="button"
+            onClick={() => setGuideOpen(true)}
+            className="flex flex-col items-center justify-center gap-0.5 px-0 py-2 text-center text-[8px] font-medium leading-tight text-muted-foreground transition-colors"
+          >
+            <BookOpen className="h-5 w-5" />
+            <span className="max-w-full">Como usar</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setSuggestionOpen(true)}
-            className="flex flex-col items-center justify-center gap-0.5 px-0.5 py-2 text-center text-[9px] font-medium leading-tight text-muted-foreground transition-colors"
+            className="flex flex-col items-center justify-center gap-0.5 px-0 py-2 text-center text-[8px] font-medium leading-tight text-muted-foreground transition-colors"
           >
             <Lightbulb className="h-5 w-5" />
             <span className="max-w-full">Enviar sugestão</span>
@@ -141,6 +175,7 @@ export function Layout() {
         open={suggestionOpen}
         onOpenChange={setSuggestionOpen}
       />
+      <HowToStartDialog open={guideOpen} onOpenChange={closeGuide} />
     </div>
   );
 }

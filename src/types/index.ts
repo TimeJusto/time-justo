@@ -26,6 +26,8 @@ export interface Settings {
   maxAttempts: number;
   /** Escala das notas: 1–5 ou 1–10. */
   starScale: StarScale;
+  /** true quando o usuário já definiu times e jogadores por time. */
+  configured: boolean;
   /** Nome do grupo exibido no cabeçalho (até 40 caracteres). */
   groupName: string;
   /** Logo do grupo (data URL) ou null para usar APP_LOGO. */
